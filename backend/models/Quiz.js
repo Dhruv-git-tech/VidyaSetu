@@ -20,7 +20,7 @@ const quizSchema = new mongoose.Schema({
     timeLimit: { type: Number, default: 0 },
     passingScore: { type: Number, default: 60 },
     badgeAwarded: { type: String, default: '' },
-    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    createdBy: { type: String, default: '' },
 }, { timestamps: true });
 
 module.exports = mongoose.model('Quiz', quizSchema);

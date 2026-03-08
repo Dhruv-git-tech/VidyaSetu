@@ -1,8 +1,9 @@
 const mongoose = require('mongoose');
 
 const messageSchema = new mongoose.Schema({
+    _id: { type: String, required: true },
     roomId: { type: String, required: true },
-    senderId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    senderId: { type: String, default: '' },
     senderName: { type: String, default: 'Anonymous' },
     senderRole: { type: String, enum: ['student', 'teacher'], default: 'student' },
     text: { type: String, required: true },

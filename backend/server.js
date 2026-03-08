@@ -92,6 +92,13 @@ io.on('connection', (socket) => {
             timestamp: new Date(),
         };
         io.to(data.roomId).emit('chat:message', message);
+
+        // Persist message to MongoDB if connected
+        const mongoose = require('mongoose');
+        if (mongoose.connection.readyState === 1) {
+            const Message = require('./models/Message');
+            Message.create(message).catch(err => console.log('Chat save error:', err.message));
+        }
     });
 
     socket.on('chat:typing', (data) => {

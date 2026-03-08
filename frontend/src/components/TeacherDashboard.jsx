@@ -55,7 +55,10 @@ export default function TeacherDashboard({ user }) {
         });
         socket.on('presence:online_count', (data) => setOnlineCount(data.count));
         socket.on('presence:user_joined', (data) => setActivityFeed(prev => [{ text: `${data.name} joined the class`, time: Date.now() }, ...prev].slice(0, 20)));
-        socket.on('chat:message', (msg) => setChatMessages(prev => [...prev, msg]));
+        socket.on('chat:message', (msg) => setChatMessages(prev => {
+            if (prev.some(m => m._id === msg._id)) return prev;
+            return [...prev, msg];
+        }));
         socket.on('quiz:submission_received', (data) => setActivityFeed(prev => [{ text: `A student submitted their quiz`, time: Date.now() }, ...prev].slice(0, 20)));
 
         const goOnline = () => setIsOnline(true);
@@ -76,7 +79,15 @@ export default function TeacherDashboard({ user }) {
             { studentId: 's5', studentName: 'Gurpreet Kaur', score: 65, status: 'offline', chapter: 'Math Ch.4' },
         ]);
 
-        return () => { window.removeEventListener('online', goOnline); window.removeEventListener('offline', goOffline); };
+        return () => {
+            socket.off('chat:message');
+            socket.off('update_teacher_dashboard');
+            socket.off('presence:online_count');
+            socket.off('presence:user_joined');
+            socket.off('quiz:submission_received');
+            window.removeEventListener('online', goOnline);
+            window.removeEventListener('offline', goOffline);
+        };
     }, []);
 
     useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatMessages]);

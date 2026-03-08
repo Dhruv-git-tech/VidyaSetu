@@ -10,7 +10,10 @@ export default function StudentPortal({ user }) {
     const [activeTab, setActiveTab] = useState('home');
     const [lessons, setLessons] = useState([]);
     const [quizzes, setQuizzes] = useState([]);
-    const [progress, setProgress] = useState(65);
+    const [progress, setProgress] = useState(() => {
+        const saved = localStorage.getItem(`progress_${user?._id}`);
+        return saved ? parseInt(saved) : 0;
+    });
     const [isSaving, setIsSaving] = useState(false);
     const [isOnline, setIsOnline] = useState(navigator.onLine);
     const [onlineCount, setOnlineCount] = useState(0);
@@ -36,14 +39,40 @@ export default function StudentPortal({ user }) {
     const [subjectFilter, setSubjectFilter] = useState('All');
     const [lessonSearch, setLessonSearch] = useState('');
     const [quizFilter, setQuizFilter] = useState('pending');
+    const [completedQuizIds, setCompletedQuizIds] = useState(() => {
+        const saved = localStorage.getItem(`completedQuizzes_${user?._id}`);
+        return saved ? JSON.parse(saved) : [];
+    });
     const [showSubmitModal, setShowSubmitModal] = useState(false);
+
+    // Helper: normalize YouTube URLs for Android WebView compatibility
+    const normalizeYouTubeUrl = (url) => {
+        if (!url) return url;
+        const match = url.match(/youtu\.be\/([a-zA-Z0-9_-]+)/);
+        if (match) return `https://www.youtube.com/watch?v=${match[1]}`;
+        return url;
+    };
 
     useEffect(() => {
         socket.emit('join_class', 'class-8a');
         socket.on('presence:online_count', (data) => setOnlineCount(data.count));
-        socket.on('chat:message', (msg) => setChatMessages(prev => [...prev, msg]));
+        // Deduplicate chat messages by _id
+        socket.on('chat:message', (msg) => setChatMessages(prev => {
+            if (prev.some(m => m._id === msg._id)) return prev;
+            return [...prev, msg];
+        }));
         socket.on('chat:typing_indicator', (data) => { setTypingUser(data.name); setTimeout(() => setTypingUser(''), 3000); });
-        socket.on('quiz:started', (data) => { setActiveQuiz(data.quiz); setCurrentQ(0); setAnswers({}); setQuizResult(null); });
+        // Quiz notification from teacher — also add to quiz list
+        socket.on('quiz:started', (data) => {
+            setActiveQuiz(data.quiz); setCurrentQ(0); setAnswers({}); setQuizResult(null);
+            // Add quiz to the quizzes list if not already there
+            if (data.quiz) {
+                setQuizzes(prev => {
+                    if (prev.some(q => q._id === data.quiz._id || q._id === data.quizId)) return prev;
+                    return [data.quiz, ...prev];
+                });
+            }
+        });
 
         // Online/Offline detection
         const goOnline = () => setIsOnline(true);
@@ -52,11 +81,33 @@ export default function StudentPortal({ user }) {
         window.addEventListener('offline', goOffline);
 
         // Fetch lessons & quizzes from API
-        fetch(`${API}/lessons`).then(r => r.json()).then(setLessons).catch(() => { });
+        fetch(`${API}/lessons`).then(r => r.json()).then(data => {
+            if (!Array.isArray(data)) { console.warn('Lessons API returned non-array:', data); return; }
+            // Normalize YouTube URLs in lessons
+            const normalized = data.map(l => ({ ...l, contentUrl: normalizeYouTubeUrl(l.contentUrl) }));
+            setLessons(normalized);
+        }).catch((err) => { console.warn('Lessons fetch error:', err); });
         fetch(`${API}/quizzes`).then(r => r.json()).then(setQuizzes).catch(() => { });
         fetch(`${API}/chat/class-8a`).then(r => r.json()).then(setChatMessages).catch(() => { });
 
-        return () => { window.removeEventListener('online', goOnline); window.removeEventListener('offline', goOffline); };
+        // Load saved progress from API or localStorage
+        if (user?._id) {
+            fetch(`${API}/users/progress/${user._id}`).then(r => r.json()).then(data => {
+                if (data.progress && data.progress.length > 0 && data.progress[0].score) {
+                    setProgress(data.progress[0].score);
+                    localStorage.setItem(`progress_${user._id}`, data.progress[0].score);
+                }
+            }).catch(() => { });
+        }
+
+        return () => {
+            socket.off('chat:message');
+            socket.off('presence:online_count');
+            socket.off('chat:typing_indicator');
+            socket.off('quiz:started');
+            window.removeEventListener('online', goOnline);
+            window.removeEventListener('offline', goOffline);
+        };
     }, []);
 
     useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatMessages]);
@@ -88,12 +139,14 @@ export default function StudentPortal({ user }) {
             }
             socket.emit('student_progress', { roomId: 'class-8a', studentId: user._id, studentName: user.name, score: newProgress, status: 'online', chapter: 'Math Ch.4' });
             setProgress(newProgress);
+            localStorage.setItem(`progress_${user._id}`, newProgress);
         } catch (e) {
             console.log('[Offline] Queueing progress update');
             import('../offline/syncQueue').then(({ enqueue }) => {
                 enqueue({ method: 'PUT', url: `${API}/users/progress/${user._id}`, body: payload });
             });
             setProgress(newProgress);
+            localStorage.setItem(`progress_${user._id}`, newProgress);
         }
         finally { setIsSaving(false); }
     };
@@ -120,6 +173,16 @@ export default function StudentPortal({ user }) {
             const pct = Math.round((score / activeQuiz.questions.reduce((a, q) => a + q.points, 0)) * 100);
             setQuizResult({ score, totalPoints: activeQuiz.questions.length, percentage: pct, passed: pct >= 60, badge: pct >= 80 ? '🏅' : '', quiz: activeQuiz });
         }
+
+        // Add to completed quizzes state
+        setCompletedQuizIds(prev => {
+            if (!prev.includes(activeQuiz._id)) {
+                const updated = [...prev, activeQuiz._id];
+                localStorage.setItem(`completedQuizzes_${user?._id}`, JSON.stringify(updated));
+                return updated;
+            }
+            return prev;
+        });
     };
 
     const sendChat = () => {
@@ -128,7 +191,7 @@ export default function StudentPortal({ user }) {
         setChatInput('');
     };
 
-    const subjects = ['All', 'Mathematics', 'Science', 'English', 'Punjabi', 'Computer'];
+    const subjects = ['All', 'Mathematics', 'Science', 'Social Science', 'English', 'Hindi', 'Punjabi', 'Computer'];
     const filteredLessons = lessons.filter(l => {
         const matchSubject = subjectFilter === 'All' || l.subject === subjectFilter;
         const matchSearch = !lessonSearch || l.title?.toLowerCase().includes(lessonSearch.toLowerCase());
@@ -186,11 +249,31 @@ export default function StudentPortal({ user }) {
                 </div>
 
                 <div className="flex-1 overflow-y-auto pb-24">
-                    {activeLesson.contentUrl ? (
-                        <div className="w-full aspect-video bg-black border-b border-white/10">
-                            <ReactPlayer url={activeLesson.contentUrl} width="100%" height="100%" playing={false} controls={true} onProgress={({ played }) => setLessonProgress(played * 100)} />
-                        </div>
-                    ) : (
+                    {activeLesson.contentUrl ? (() => {
+                        // Extract YouTube video ID for direct iframe embed (works reliably on Android WebView)
+                        const ytMatch = activeLesson.contentUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/);
+                        if (ytMatch) {
+                            return (
+                                <div className="w-full aspect-video bg-black border-b border-white/10">
+                                    <iframe
+                                        src={`https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1&rel=0&modestbranding=1`}
+                                        width="100%"
+                                        height="100%"
+                                        frameBorder="0"
+                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                        allowFullScreen
+                                        title={activeLesson.title}
+                                        style={{ border: 'none' }}
+                                    />
+                                </div>
+                            );
+                        }
+                        return (
+                            <div className="w-full aspect-video bg-black border-b border-white/10">
+                                <ReactPlayer url={activeLesson.contentUrl} width="100%" height="100%" playing={true} controls={true} onProgress={({ played }) => setLessonProgress(played * 100)} />
+                            </div>
+                        );
+                    })() : (
                         <div className="w-full aspect-video bg-gradient-to-br from-slate-800 to-slate-900 flex flex-col items-center justify-center border-b border-white/10">
                             <span className="text-5xl mb-3">📄</span><p className="font-bold text-sm text-slate-300">Document Lesson</p><p className="text-[10px] text-slate-500 mt-1">No video available for this lesson</p>
                         </div>
@@ -472,16 +555,23 @@ export default function StudentPortal({ user }) {
                             <button onClick={() => setQuizFilter('completed')} className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-colors ${quizFilter === 'completed' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:text-white'}`}>Completed</button>
                         </div>
                         <div className="space-y-3">
-                            {quizzes.map((quiz, i) => (
-                                <div key={quiz._id || i} className="bg-slate-800 rounded-2xl p-4 border border-white/5">
+                            {quizzes.filter(q => quizFilter === 'completed' ? completedQuizIds.includes(q._id) : !completedQuizIds.includes(q._id)).map((quiz, i) => (
+                                <div key={quiz._id || i} className={`rounded-2xl p-4 border ${quizFilter === 'completed' ? 'bg-indigo-950/20 border-indigo-500/20' : 'bg-slate-800 border-white/5'}`}>
                                     <div className="flex items-center justify-between mb-3">
-                                        <div><h3 className="font-bold text-sm">{quiz.title}</h3><p className="text-[11px] text-slate-500 font-semibold">{quiz.subject} · {quiz.questions?.length} questions · {Math.floor((quiz.timeLimit || 900) / 60)} min</p></div>
-                                        <span className="text-[10px] font-extrabold bg-indigo-500/20 text-indigo-300 px-2 py-1 rounded-md uppercase">New</span>
+                                        <div>
+                                            <h3 className="font-bold text-sm">{quiz.title}</h3>
+                                            <p className="text-[11px] text-slate-500 font-semibold">{quiz.subject} · {quiz.questions?.length} questions · {Math.floor((quiz.timeLimit || 900) / 60)} min</p>
+                                        </div>
+                                        {quizFilter !== 'completed' && <span className="text-[10px] font-extrabold bg-indigo-500/20 text-indigo-300 px-2 py-1 rounded-md uppercase">New</span>}
+                                        {quizFilter === 'completed' && <span className="text-[10px] font-extrabold bg-emerald-500/10 text-emerald-400 px-2 py-1 rounded-md uppercase">Done ✓</span>}
                                     </div>
-                                    <button onClick={() => { setActiveQuiz(quiz); setCurrentQ(0); setAnswers({}); setQuizResult(null); }} className="w-full py-3 bg-indigo-600 rounded-xl text-sm font-bold hover:bg-indigo-500 active:scale-95 transition-all">Start Quiz →</button>
+                                    <button onClick={() => { setActiveQuiz(quiz); setCurrentQ(0); setAnswers({}); setQuizResult(null); }}
+                                        className={`w-full py-3 rounded-xl text-sm font-bold transition-all ${quizFilter === 'completed' ? 'bg-slate-700 hover:bg-slate-600 text-white' : 'bg-indigo-600 hover:bg-indigo-500 active:scale-95'}`}>
+                                        {quizFilter === 'completed' ? 'Retake Quiz ↺' : 'Start Quiz →'}
+                                    </button>
                                 </div>
                             ))}
-                            {quizzes.length === 0 && <p className="text-center text-slate-500 text-sm py-8">✏️ No quizzes available yet.</p>}
+                            {quizzes.filter(q => quizFilter === 'completed' ? completedQuizIds.includes(q._id) : !completedQuizIds.includes(q._id)).length === 0 && <p className="text-center text-slate-500 text-sm py-8">{quizFilter === 'completed' ? '🏆 No completed quizzes yet.' : '✏️ No pending quizzes to take.'}</p>}
                         </div>
                     </div>
                 )}

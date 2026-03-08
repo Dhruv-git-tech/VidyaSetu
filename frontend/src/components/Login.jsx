@@ -21,10 +21,38 @@ export default function Login({ onLogin }) {
         try {
             const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
             const data = await res.json();
-            if (res.ok) { localStorage.setItem('userInfo', JSON.stringify(data)); onLogin(data); }
-            else { setError(data.message || 'Something went wrong'); }
+            if (res.ok) {
+                localStorage.setItem('userInfo', JSON.stringify(data));
+                // Cache this user's credentials locally for offline/fallback login
+                const localUsers = JSON.parse(localStorage.getItem('registeredUsers') || '{}');
+                localUsers[email] = { ...data, password };
+                localStorage.setItem('registeredUsers', JSON.stringify(localUsers));
+                onLogin(data);
+            }
+            else {
+                // Server returned error (e.g. "MongoDB disconnected") — try local cache
+                if (isLogin) {
+                    const localUsers = JSON.parse(localStorage.getItem('registeredUsers') || '{}');
+                    if (localUsers[email] && localUsers[email].password === password) {
+                        const cachedUser = localUsers[email];
+                        localStorage.setItem('userInfo', JSON.stringify(cachedUser));
+                        onLogin(cachedUser);
+                        return;
+                    }
+                }
+                setError(data.message || 'Something went wrong');
+            }
         } catch (err) {
             // --- OFFLINE MODE FALLBACK ---
+            // First check locally registered users
+            const localUsers = JSON.parse(localStorage.getItem('registeredUsers') || '{}');
+            if (localUsers[email] && localUsers[email].password === password) {
+                const cachedUser = localUsers[email];
+                localStorage.setItem('userInfo', JSON.stringify(cachedUser));
+                onLogin(cachedUser);
+                return;
+            }
+
             const cachedUser = localStorage.getItem('userInfo') ? JSON.parse(localStorage.getItem('userInfo')) : null;
 
             // Allow Test Accounts to login offline automatically
