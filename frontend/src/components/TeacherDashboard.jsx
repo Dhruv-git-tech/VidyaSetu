@@ -26,10 +26,23 @@ export default function TeacherDashboard({ user }) {
     // Lesson Builder State
     const [showLessonBuilder, setShowLessonBuilder] = useState(false);
     const [editingLesson, setEditingLesson] = useState(null);
-    const [lessonForm, setLessonForm] = useState({ title: '', subject: 'Mathematics', grade: '8', language: 'English', description: '', contentUrl: '', pdfUrl: '', duration: 30, isPublished: false, isDownloadable: true, tags: '' });
+    const [lessonForm, setLessonForm] = useState({ 
+        title: '', 
+        subject: 'Mathematics', 
+        standard: '8', 
+        section: 'ALL', 
+        language: 'English', 
+        description: '', 
+        contentUrl: '', 
+        pdfUrl: '', 
+        duration: 30, 
+        isPublished: false, 
+        isDownloadable: true, 
+        tags: '' 
+    });
 
     // Analytics State
-    const [analyticsFilter, setAnalyticsFilter] = useState({ grade: 'All', subject: 'All' });
+    const [analyticsFilter, setAnalyticsFilter] = useState({ standard: 'All', subject: 'All', section: 'All' });
     const [searchStudent, setSearchStudent] = useState('');
     const [analyticsCardFilter, setAnalyticsCardFilter] = useState('all');
 
@@ -182,6 +195,7 @@ export default function TeacherDashboard({ user }) {
 
     const handleCreateLesson = async (publishOverride) => {
         if (!lessonForm.title || lessonForm.title.length < 3) { alert('Title must be at least 3 characters'); return; }
+        if (!lessonForm.standard) { alert('Please select a class'); return; }
         try {
             const tags = lessonForm.tags ? lessonForm.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
             const method = editingLesson ? 'PUT' : 'POST';
@@ -193,7 +207,7 @@ export default function TeacherDashboard({ user }) {
             savedLessonIdRef.current = saved._id;
             if (editingLesson) { setLessons(prev => prev.map(l => l._id === saved._id ? saved : l)); } else { setLessons(prev => [saved, ...prev]); }
             setShowLessonBuilder(false); setEditingLesson(null);
-            setLessonForm({ title: '', subject: 'Mathematics', grade: '8', language: 'English', description: '', contentUrl: '', pdfUrl: '', duration: 30, isPublished: false, isDownloadable: true, tags: '' });
+            setLessonForm({ title: '', subject: 'Mathematics', standard: '8', section: 'ALL', language: 'English', description: '', contentUrl: '', pdfUrl: '', duration: 30, isPublished: false, isDownloadable: true, tags: '' });
         } catch (e) { alert('Failed to save'); }
     };
 
@@ -280,11 +294,64 @@ export default function TeacherDashboard({ user }) {
                 <div className="space-y-4">
                     {/* Title */}
                     <div><label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1">Title *</label><input value={lessonForm.title} onChange={e => setLessonForm({ ...lessonForm, title: e.target.value })} className="w-full p-3.5 bg-slate-800 border border-white/10 rounded-xl text-white font-semibold text-sm focus:border-indigo-500 outline-none" placeholder="Lesson title..." />{lessonForm.title && lessonForm.title.length < 3 && <p className="text-[10px] text-red-400 mt-1">Min 3 characters</p>}</div>
-                    {/* Subject / Grade / Language */}
-                    <div className="grid grid-cols-3 gap-3">
-                        {[['subject', ['Mathematics', 'Science', 'English', 'History', 'Digital Literacy']], ['grade', ['6', '7', '8', '9', '10']], ['language', ['English', 'Punjabi', 'Hindi']]].map(([field, opts]) => (
-                            <div key={field}><label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1">{field}</label><select value={lessonForm[field]} onChange={e => setLessonForm({ ...lessonForm, [field]: e.target.value })} className="w-full p-3 bg-slate-800 border border-white/10 rounded-xl text-white text-xs font-semibold focus:border-indigo-500 outline-none">{opts.map(o => <option key={o} value={o}>{o}</option>)}</select></div>
-                        ))}
+                    
+                    {/* Class / Section */}
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1">Class *</label>
+                            <select value={lessonForm.standard} onChange={e => setLessonForm({ ...lessonForm, standard: e.target.value })} className="w-full p-3 bg-slate-800 border border-white/10 rounded-xl text-white text-xs font-semibold focus:border-indigo-500 outline-none">
+                                <option value="">Select</option>
+                                <option value="1">Class 1</option>
+                                <option value="2">Class 2</option>
+                                <option value="3">Class 3</option>
+                                <option value="4">Class 4</option>
+                                <option value="5">Class 5</option>
+                                <option value="6">Class 6</option>
+                                <option value="7">Class 7</option>
+                                <option value="8">Class 8</option>
+                                <option value="9">Class 9</option>
+                                <option value="10">Class 10</option>
+                                <option value="11">Class 11</option>
+                                <option value="12">Class 12</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1">Section *</label>
+                            <select value={lessonForm.section} onChange={e => setLessonForm({ ...lessonForm, section: e.target.value })} className="w-full p-3 bg-slate-800 border border-white/10 rounded-xl text-white text-xs font-semibold focus:border-indigo-500 outline-none">
+                                <option value="ALL">All Sections</option>
+                                <option value="A">Section A</option>
+                                <option value="B">Section B</option>
+                                <option value="C">Section C</option>
+                                <option value="D">Section D</option>
+                                <option value="E">Section E</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    {/* Subject / Language */}
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1">Subject *</label>
+                            <select value={lessonForm.subject} onChange={e => setLessonForm({ ...lessonForm, subject: e.target.value })} className="w-full p-3 bg-slate-800 border border-white/10 rounded-xl text-white text-xs font-semibold focus:border-indigo-500 outline-none">
+                                <option value="Mathematics">Mathematics</option>
+                                <option value="Science">Science</option>
+                                <option value="English">English</option>
+                                <option value="History">History</option>
+                                <option value="Social Science">Social Science</option>
+                                <option value="Hindi">Hindi</option>
+                                <option value="Punjabi">Punjabi</option>
+                                <option value="Computer">Computer</option>
+                                <option value="Digital Literacy">Digital Literacy</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1">Language *</label>
+                            <select value={lessonForm.language} onChange={e => setLessonForm({ ...lessonForm, language: e.target.value })} className="w-full p-3 bg-slate-800 border border-white/10 rounded-xl text-white text-xs font-semibold focus:border-indigo-500 outline-none">
+                                <option value="English">English</option>
+                                <option value="Punjabi">Punjabi</option>
+                                <option value="Hindi">Hindi</option>
+                            </select>
+                        </div>
                     </div>
                     {/* Description */}
                     <div><label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1">Description *</label><textarea value={lessonForm.description} onChange={e => setLessonForm({ ...lessonForm, description: e.target.value })} rows={3} maxLength={500} className="w-full p-3.5 bg-slate-800 border border-white/10 rounded-xl text-white font-semibold text-sm focus:border-indigo-500 outline-none resize-none" placeholder="Brief lesson description..." /><p className="text-[10px] text-slate-600 text-right mt-0.5">{(lessonForm.description || '').length}/500</p></div>

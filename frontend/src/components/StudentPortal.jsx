@@ -120,12 +120,8 @@ export default function StudentPortal({ user }) {
                 }).catch(() => {});
             }
             if (notif.type === 'lesson') {
-                fetch(`${API}/lessons`).then(r => r.json()).then(data => {
-                    if (Array.isArray(data)) {
-                        const normalized = data.map(l => ({ ...l, contentUrl: normalizeYouTubeUrl(l.contentUrl) }));
-                        setLessons(normalized);
-                    }
-                }).catch(() => {});
+                // Refetch lessons for this student's class
+                fetchLessons();
             }
         });
 
@@ -140,13 +136,19 @@ export default function StudentPortal({ user }) {
             if (Array.isArray(data)) setNotifications(data);
         }).catch(() => {});
 
-        // Fetch lessons & quizzes from API
-        fetch(`${API}/lessons`).then(r => r.json()).then(data => {
-            if (!Array.isArray(data)) { console.warn('Lessons API returned non-array:', data); return; }
-            // Normalize YouTube URLs in lessons
-            const normalized = data.map(l => ({ ...l, contentUrl: normalizeYouTubeUrl(l.contentUrl) }));
-            setLessons(normalized);
-        }).catch((err) => { console.warn('Lessons fetch error:', err); });
+        // Fetch lessons filtered by student's class and section
+        const fetchLessons = () => {
+            const standard = user?.standard || '8';
+            const section = user?.section || 'ALL';
+            fetch(`${API}/lessons?standard=${standard}&section=${section}`).then(r => r.json()).then(data => {
+                if (!Array.isArray(data)) { console.warn('Lessons API returned non-array:', data); return; }
+                // Normalize YouTube URLs in lessons
+                const normalized = data.map(l => ({ ...l, contentUrl: normalizeYouTubeUrl(l.contentUrl) }));
+                setLessons(normalized);
+            }).catch((err) => { console.warn('Lessons fetch error:', err); });
+        };
+        fetchLessons();
+        
         fetch(`${API}/quizzes`).then(r => r.json()).then(setQuizzes).catch(() => { });
         fetch(`${API}/chat/class-8a`).then(r => r.json()).then(setChatMessages).catch(() => { });
 
@@ -599,8 +601,8 @@ export default function StudentPortal({ user }) {
             {/* Offline Sync Banner */}
             {!isOnline && (
                 <div className="bg-amber-500/20 border-b border-amber-500/30 px-4 py-3 text-center transition-all animate-fadeIn">
-                    <p className="text-amber-300 text-xs font-bold font-sans">⚡ You're offline — learning from saved content</p>
-                    <p className="text-amber-400/60 text-[10px] uppercase font-bold tracking-widest mt-1">Progress queued locally</p>
+                    <p className="text-amber-300 text-xs font-bold font-sans">⚡ Offline Mode — Learning from saved content</p>
+                    <p className="text-amber-400/60 text-[10px] uppercase font-bold tracking-widest mt-1">Progress will sync when online</p>
                 </div>
             )}
 

@@ -1,9 +1,25 @@
 const mongoose = require('mongoose');
 
 const otpSchema = new mongoose.Schema({
-    email: { type: String, required: true },
+    email: { 
+        type: String, 
+        required: true, 
+        unique: true,
+        lowercase: true,
+        trim: true 
+    },
     otp: { type: String, required: true },
-    createdAt: { type: Date, default: Date.now, expires: 300 } // Document auto-deletes after 5 minutes (300 seconds)
+    expiresAt: { 
+        type: Date, 
+        default: () => new Date(Date.now() + 5 * 60 * 1000), // 5 minutes from now
+        index: { expireAfterSeconds: 0 } // Auto-delete after expiresAt
+    },
+    attempts: { type: Number, default: 0 },
+    verified: { type: Boolean, default: false },
+    createdAt: { type: Date, default: Date.now }
 });
+
+// Index for efficient queries
+otpSchema.index({ email: 1, otp: 1 });
 
 module.exports = mongoose.model('OTP', otpSchema);

@@ -1,0 +1,284 @@
+# Vidya Sahayak - Digital Learning Platform
+# Requirements and Dependencies
+
+## System Requirements
+
+### Minimum Requirements
+- **Node.js**: v20 LTS or higher (v23.2.0 tested)
+- **npm**: v9.x or higher
+- **RAM**: 4GB minimum (8GB recommended for development)
+- **Storage**: 500MB for dependencies + project files
+- **Network**: Internet connection for initial setup and cloud sync
+
+### For Android Development (Optional)
+- **Android Studio**: Arctic Fox or higher
+- **Android SDK**: API level 21+
+- **Capacitor CLI**: v8.x
+
+---
+
+## Backend Dependencies
+
+### Core Dependencies
+- express: ^4.21.2          # Web framework
+- mongoose: ^8.10.1         # MongoDB ODM
+- socket.io: ^4.8.1         # Real-time WebSocket communication
+- cors: ^2.8.5              # Cross-origin resource sharing
+- dotenv: ^16.4.7           # Environment variable management
+
+### Authentication & Security
+- jsonwebtoken: ^9.0.3      # JWT-based authentication
+- bcryptjs: ^3.0.3          # Password hashing
+
+### File Handling & Media
+- multer: ^2.1.1            # File upload handling
+- fluent-ffmpeg: ^2.1.3     # Video compression/transcoding
+- cloudinary: ^2.9.0        # Cloud media storage
+- better-queue: ^3.8.12     # Job queue for video compression
+
+### Communication
+- nodemailer: ^8.0.2        # Email service (OTP, notifications)
+
+### Development
+- nodemon: ^3.1.14          # Auto-restart during development
+
+---
+
+## Frontend Dependencies
+
+### Core Framework
+- react: ^18.3.1            # UI framework
+- react-dom: ^18.3.1        # React DOM rendering
+- vite: ^7.3.1              # Build tool and dev server
+- @vitejs/plugin-react: ^4.3.3  # React plugin for Vite
+
+### Routing & State
+- react-router-dom: ^6.x    # Client-side routing (if used)
+- axios: ^1.13.6            # HTTP client for API calls
+
+### UI & Styling
+- tailwindcss: ^3.4.19      # Utility-first CSS framework
+- postcss: ^8.5.5           # CSS processing
+- autoprefixer: ^10.4.27    # CSS vendor prefixes
+- lucide-react: ^0.577.0    # Icon library
+
+### PWA & Offline
+- vite-plugin-pwa: ^0.19.8  # PWA plugin for Vite
+- workbox-window: ^7.4.0    # Service Worker utilities
+- idb: ^8.0.3               # IndexedDB wrapper for offline storage
+
+### Real-time Communication
+- socket.io-client: ^4.8.3  # Socket.IO client for WebSocket
+
+### Mobile & Native
+- @capacitor/core: ^8.1.0   # Capacitor core for native apps
+- @capacitor/cli: ^8.1.0    # Capacitor CLI
+- @capacitor/android: ^8.1.0 # Android platform support
+
+### Data Visualization
+- recharts: ^3.7.0          # Charts for teacher analytics
+
+### Media
+- react-player: ^3.4.0      # Video player component
+
+### Development Dependencies
+- eslint: ^9.13.0           # Code linting
+- eslint-plugin-react: ^7.37.2
+- eslint-plugin-react-hooks: ^5.0.0
+- eslint-plugin-react-refresh: ^0.4.14
+- @eslint/js: ^9.13.0
+- globals: ^15.11.0
+- @types/react: ^18.3.12    # TypeScript definitions
+- @types/react-dom: ^18.3.1
+
+---
+
+## Environment Variables Required
+
+### Backend (.env in /backend)
+```
+# Database
+MONGODB_URI=mongodb+srv://<username>:<password>@cluster.mongodb.net/vidya-sahayak
+
+# JWT Secret
+JWT_SECRET=your_super_secret_jwt_key_here
+
+# Email Configuration (for nodemailer)
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USER=your-email@gmail.com
+EMAIL_PASS=your-app-specific-password
+
+# Cloudinary (for media storage)
+CLOUDINARY_CLOUD_NAME=your-cloud-name
+CLOUDINARY_API_KEY=your-api-key
+CLOUDINARY_API_SECRET=your-api-secret
+
+# Server Configuration
+PORT=5000
+NODE_ENV=development
+
+# CORS (Frontend URL)
+FRONTEND_URL=http://localhost:5173
+```
+
+### Frontend (.env in /frontend)
+```
+# Backend API URL
+VITE_API_URL=http://localhost:5000/api
+
+# Socket.IO Server URL
+VITE_SOCKET_URL=http://localhost:5000
+
+# App Configuration
+VITE_APP_NAME=Vidya Sahayak
+```
+
+---
+
+## Installation Steps
+
+### 1. Clone Repository
+```bash
+git clone <repository-url>
+cd digital-learning-platform
+```
+
+### 2. Install Backend Dependencies
+```bash
+cd backend
+npm install
+```
+
+### 3. Install Frontend Dependencies
+```bash
+cd frontend
+npm install
+```
+
+### 4. Configure Environment Variables
+Create `.env` files in both backend and frontend directories with the required variables.
+
+### 5. Install FFmpeg (Required for Video Compression)
+- **macOS**: `brew install ffmpeg`
+- **Windows**: Download from https://ffmpeg.org/download.html
+- **Linux**: `sudo apt-get install ffmpeg`
+
+### 6. Install Capacitor (For Android Build - Optional)
+```bash
+cd frontend
+npm install @capacitor/core @capacitor/cli @capacitor/android
+npx cap init
+npx cap add android
+```
+
+---
+
+## Running the Application
+
+### Development Mode
+
+#### Backend
+```bash
+cd backend
+npm run dev
+# Server runs on http://localhost:5000
+```
+
+#### Frontend
+```bash
+cd frontend
+npm run dev
+# App runs on http://localhost:5173
+```
+
+### Production Build
+
+#### Backend
+```bash
+cd backend
+npm start
+```
+
+#### Frontend
+```bash
+cd frontend
+npm run build
+npm run preview
+```
+
+### Android APK Build
+```bash
+cd frontend
+npm run build
+npx cap sync android
+# Open frontend/android in Android Studio and build APK
+```
+
+---
+
+## Testing
+
+### Backend Tests
+(Add test framework like Jest/Mocha as needed)
+
+### Frontend Tests
+(Add test framework like Vitest/Jest as needed)
+
+---
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Module not found errors**
+   - Run `npm install` in the respective directory
+   - Clear npm cache: `npm cache clean --force`
+   - Delete node_modules and reinstall: `rm -rf node_modules && npm install`
+
+2. **MongoDB connection errors**
+   - Verify MongoDB URI in .env
+   - Check network access in MongoDB Atlas
+   - Ensure IP whitelist includes your current IP
+
+3. **FFmpeg not found**
+   - Install FFmpeg system-wide
+   - Add FFmpeg to system PATH
+   - Verify installation: `ffmpeg -version`
+
+4. **Port already in use**
+   - Change PORT in backend/.env
+   - Update VITE_API_URL in frontend/.env accordingly
+
+5. **CORS errors**
+   - Verify FRONTEND_URL in backend/.env
+   - Ensure frontend is running on the specified URL
+
+---
+
+## Project Structure
+```
+digital-learning-platform/
+├── backend/
+│   ├── controllers/      # Request handlers
+│   ├── models/           # MongoDB schemas
+│   ├── routes/           # API routes
+│   ├── services/         # Business logic
+│   ├── middleware/       # Express middleware
+│   ├── .env              # Environment variables
+│   ├── server.js         # Entry point
+│   └── package.json
+├── frontend/
+│   ├── src/
+│   │   ├── components/   # React components
+│   │   ├── pages/        # Page components
+│   │   ├── services/     # API services
+│   │   ├── offline/      # Offline sync logic
+│   │   └── App.jsx       # Main app component
+│   ├── public/           # Static assets
+│   ├── .env              # Environment variables
+│   └── package.json
+├── nabha/                # Project specifications
+├── diagrams/             # Architecture diagrams
+└── README.md
+```
