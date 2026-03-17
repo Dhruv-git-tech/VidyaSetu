@@ -8,7 +8,7 @@ const getQuizzes = async (req, res) => {
     if (mongoose.connection.readyState !== 1) {
         return res.json([
             {
-                _id: 'quiz-demo-1', title: 'Weekly Math Quiz', subject: 'Mathematics', grade: '8',
+                _id: 'quiz-demo-1', title: 'Weekly Math Quiz', subject: 'Mathematics', standard: '8', section: 'ALL',
                 language: 'English', totalPoints: 10, timeLimit: 900, passingScore: 60, badgeAwarded: 'star',
                 questions: [
                     { _id: 'q1', questionText: 'What is 5x + 3 when x = 4?', type: 'mcq', options: ['15', '20', '23', '28'], correctAnswer: '23', points: 1, explanation: '5(4)+3 = 23' },
@@ -21,7 +21,12 @@ const getQuizzes = async (req, res) => {
         ]);
     }
     try {
-        const quizzes = await Quiz.find().sort({ createdAt: -1 });
+        const { standard } = req.query;
+        const filter = {};
+        
+        if (standard) filter.standard = standard;
+        
+        const quizzes = await Quiz.find(filter).sort({ createdAt: -1 });
         res.json(quizzes);
     } catch (error) {
         res.status(500).json({ message: 'Server error', error: error.message });
@@ -48,15 +53,16 @@ const createQuiz = async (req, res) => {
     try {
         const quiz = await Quiz.create({ ...req.body, createdBy: req.user?.userId || req.body.createdBy });
 
-        // Create notification for new quiz
+        // Create notification for new quiz with class-specific targeting
         const notification = await createNotification({
             title: 'New Quiz Available',
-            message: `"${quiz.title}" — ${quiz.subject || 'General'} quiz is now available`,
+            message: `"${quiz.title}" — ${quiz.subject || 'General'} quiz for Class ${quiz.standard}`,
             type: 'quiz',
             referenceId: quiz._id.toString(),
             createdBy: req.user?.userId || req.body.createdBy,
             createdByName: req.body.createdByName || 'Teacher',
             targetRole: 'all',
+            standard: quiz.standard || 'ALL',
         });
         const io = getIO();
         if (io && notification) {

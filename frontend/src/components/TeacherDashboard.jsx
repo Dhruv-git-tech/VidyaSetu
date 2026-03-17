@@ -30,7 +30,6 @@ export default function TeacherDashboard({ user }) {
         title: '', 
         subject: 'Mathematics', 
         standard: '8', 
-        section: 'ALL', 
         language: 'English', 
         description: '', 
         contentUrl: '', 
@@ -42,13 +41,13 @@ export default function TeacherDashboard({ user }) {
     });
 
     // Analytics State
-    const [analyticsFilter, setAnalyticsFilter] = useState({ standard: 'All', subject: 'All', section: 'All' });
+    const [analyticsFilter, setAnalyticsFilter] = useState({ standard: 'All', subject: 'All' });
     const [searchStudent, setSearchStudent] = useState('');
     const [analyticsCardFilter, setAnalyticsCardFilter] = useState('all');
 
     // Quiz Builder State
     const [showQuizBuilder, setShowQuizBuilder] = useState(false);
-    const [quizForm, setQuizForm] = useState({ title: '', subject: 'Mathematics', grade: '8', language: 'English', timeLimit: 900, passingScore: 60, badgeAwarded: '⭐', questions: [] });
+    const [quizForm, setQuizForm] = useState({ title: '', subject: 'Mathematics', standard: '8', language: 'English', timeLimit: 900, passingScore: 60, badgeAwarded: '⭐', questions: [] });
     const [editingQuestion, setEditingQuestion] = useState(null);
     const [qForm, setQForm] = useState({ questionText: '', type: 'mcq', options: ['', '', '', ''], correctAnswer: '', points: 1, explanation: '' });
     const [previewMode, setPreviewMode] = useState(false);
@@ -63,6 +62,20 @@ export default function TeacherDashboard({ user }) {
     const [showAnnouncement, setShowAnnouncement] = useState(false);
     const [announcement, setAnnouncement] = useState({ title: '', body: '' });
     const chatEndRef = useRef(null);
+    
+    // Multi-class chat support for teachers
+    const [selectedClass, setSelectedClass] = useState({ standard: '8' });
+    const [classGroups, setClassGroups] = useState([
+        { standard: '4', subject: 'Mathematics', studentCount: 45 },
+        { standard: '5', subject: 'Mathematics', studentCount: 42 },
+        { standard: '6', subject: 'Mathematics', studentCount: 40 },
+        { standard: '7', subject: 'Mathematics', studentCount: 38 },
+        { standard: '8', subject: 'Mathematics', studentCount: 42 },
+        { standard: '9', subject: 'Mathematics', studentCount: 35 },
+        { standard: '10', subject: 'Mathematics', studentCount: 32 },
+        { standard: '11', subject: 'Mathematics', studentCount: 28 },
+        { standard: '12', subject: 'Mathematics', studentCount: 25 },
+    ]);
     const savedLessonIdRef = useRef(null); // tracks last saved lesson ID for post-compression DB update
 
     useEffect(() => {
@@ -123,7 +136,10 @@ export default function TeacherDashboard({ user }) {
 
         fetch(`${API}/lessons`).then(r => r.json()).then(setLessons).catch(() => { });
         fetch(`${API}/quizzes`).then(r => r.json()).then(setQuizzes).catch(() => { });
-        fetch(`${API}/chat/class-8a`).then(r => r.json()).then(setChatMessages).catch(() => { });
+        
+        // Fetch chat messages for selected class
+        const roomId = `class-${selectedClass.standard}`;
+        fetch(`${API}/chat/${roomId}`).then(r => r.json()).then(setChatMessages).catch(() => { });
         fetch(`${API}/notifications?role=teacher&userId=${user?._id || ''}`).then(r => r.json()).then(data => {
             if (Array.isArray(data)) setNotifications(data);
         }).catch(() => {});
@@ -207,7 +223,7 @@ export default function TeacherDashboard({ user }) {
             savedLessonIdRef.current = saved._id;
             if (editingLesson) { setLessons(prev => prev.map(l => l._id === saved._id ? saved : l)); } else { setLessons(prev => [saved, ...prev]); }
             setShowLessonBuilder(false); setEditingLesson(null);
-            setLessonForm({ title: '', subject: 'Mathematics', standard: '8', section: 'ALL', language: 'English', description: '', contentUrl: '', pdfUrl: '', duration: 30, isPublished: false, isDownloadable: true, tags: '' });
+            setLessonForm({ title: '', subject: 'Mathematics', standard: '8', language: 'English', description: '', contentUrl: '', pdfUrl: '', duration: 30, isPublished: false, isDownloadable: true, tags: '' });
         } catch (e) { alert('Failed to save'); }
     };
 
@@ -263,7 +279,8 @@ export default function TeacherDashboard({ user }) {
 
     const sendChat = () => {
         if (!chatInput.trim()) return;
-        socket.emit('chat:send', { roomId: 'class-8a', text: chatInput, senderId: user?._id, senderName: user?.name || 'Teacher', senderRole: 'teacher' });
+        const roomId = `class-${selectedClass.standard}`;
+        socket.emit('chat:send', { roomId, text: chatInput, senderId: user?._id, senderName: user?.name || 'Teacher', senderRole: 'teacher' });
         setChatInput('');
     };
 
@@ -295,37 +312,21 @@ export default function TeacherDashboard({ user }) {
                     {/* Title */}
                     <div><label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1">Title *</label><input value={lessonForm.title} onChange={e => setLessonForm({ ...lessonForm, title: e.target.value })} className="w-full p-3.5 bg-slate-800 border border-white/10 rounded-xl text-white font-semibold text-sm focus:border-indigo-500 outline-none" placeholder="Lesson title..." />{lessonForm.title && lessonForm.title.length < 3 && <p className="text-[10px] text-red-400 mt-1">Min 3 characters</p>}</div>
                     
-                    {/* Class / Section */}
-                    <div className="grid grid-cols-2 gap-3">
-                        <div>
-                            <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1">Class *</label>
-                            <select value={lessonForm.standard} onChange={e => setLessonForm({ ...lessonForm, standard: e.target.value })} className="w-full p-3 bg-slate-800 border border-white/10 rounded-xl text-white text-xs font-semibold focus:border-indigo-500 outline-none">
-                                <option value="">Select</option>
-                                <option value="1">Class 1</option>
-                                <option value="2">Class 2</option>
-                                <option value="3">Class 3</option>
-                                <option value="4">Class 4</option>
-                                <option value="5">Class 5</option>
-                                <option value="6">Class 6</option>
-                                <option value="7">Class 7</option>
-                                <option value="8">Class 8</option>
-                                <option value="9">Class 9</option>
-                                <option value="10">Class 10</option>
-                                <option value="11">Class 11</option>
-                                <option value="12">Class 12</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1">Section *</label>
-                            <select value={lessonForm.section} onChange={e => setLessonForm({ ...lessonForm, section: e.target.value })} className="w-full p-3 bg-slate-800 border border-white/10 rounded-xl text-white text-xs font-semibold focus:border-indigo-500 outline-none">
-                                <option value="ALL">All Sections</option>
-                                <option value="A">Section A</option>
-                                <option value="B">Section B</option>
-                                <option value="C">Section C</option>
-                                <option value="D">Section D</option>
-                                <option value="E">Section E</option>
-                            </select>
-                        </div>
+                    {/* Class */}
+                    <div>
+                        <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1">Class *</label>
+                        <select value={lessonForm.standard} onChange={e => setLessonForm({ ...lessonForm, standard: e.target.value })} className="w-full p-3 bg-slate-800 border border-white/10 rounded-xl text-white text-xs font-semibold focus:border-indigo-500 outline-none">
+                            <option value="">Select</option>
+                            <option value="4">Class 4</option>
+                            <option value="5">Class 5</option>
+                            <option value="6">Class 6</option>
+                            <option value="7">Class 7</option>
+                            <option value="8">Class 8</option>
+                            <option value="9">Class 9</option>
+                            <option value="10">Class 10</option>
+                            <option value="11">Class 11</option>
+                            <option value="12">Class 12</option>
+                        </select>
                     </div>
                     
                     {/* Subject / Language */}
@@ -449,6 +450,24 @@ export default function TeacherDashboard({ user }) {
                 ) : (
                     <div className="space-y-4">
                         <div><label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1">Quiz Title *</label><input value={quizForm.title} onChange={e => setQuizForm({ ...quizForm, title: e.target.value })} className="w-full p-3.5 bg-slate-800 border border-white/10 rounded-xl text-white font-semibold text-sm focus:border-indigo-500 outline-none" placeholder="Quiz title..." /></div>
+                        
+                        {/* Class Selection */}
+                        <div>
+                            <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1">Class *</label>
+                            <select value={quizForm.standard} onChange={e => setQuizForm({ ...quizForm, standard: e.target.value })} className="w-full p-3 bg-slate-800 border border-white/10 rounded-xl text-white text-xs font-semibold focus:border-indigo-500 outline-none">
+                                <option value="">Select</option>
+                                <option value="4">Class 4</option>
+                                <option value="5">Class 5</option>
+                                <option value="6">Class 6</option>
+                                <option value="7">Class 7</option>
+                                <option value="8">Class 8</option>
+                                <option value="9">Class 9</option>
+                                <option value="10">Class 10</option>
+                                <option value="11">Class 11</option>
+                                <option value="12">Class 12</option>
+                            </select>
+                        </div>
+                        
                         <div className="grid grid-cols-2 gap-3">
                             <div><label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1">Time Limit (min)</label><input type="number" value={Math.floor(quizForm.timeLimit / 60)} onChange={e => setQuizForm({ ...quizForm, timeLimit: parseInt(e.target.value || 0) * 60 })} className="w-full p-3 bg-slate-800 border border-white/10 rounded-xl text-white font-semibold text-sm focus:border-indigo-500 outline-none" /></div>
                             <div><label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1">Passing %</label><input type="number" value={quizForm.passingScore} onChange={e => setQuizForm({ ...quizForm, passingScore: parseInt(e.target.value || 60) })} className="w-full p-3 bg-slate-800 border border-white/10 rounded-xl text-white font-semibold text-sm focus:border-indigo-500 outline-none" /></div>
@@ -862,39 +881,116 @@ export default function TeacherDashboard({ user }) {
                 {/* ──── CHAT TAB ──── */}
                 {activeTab === 'chat' && (
                     <div className="flex flex-col" style={{ height: 'calc(100vh - 200px)' }}>
-                        <div className="flex items-center justify-between mb-4">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-full bg-violet-600 flex items-center justify-center font-bold text-sm">8A</div>
-                                <div><h3 className="font-bold text-sm">Class 8A Chat</h3><p className="text-[11px] text-emerald-400 font-semibold">👥 {onlineCount} online</p></div>
+                        {/* Class Selector */}
+                        <div className="mb-4">
+                            <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-2">Select Class Group</label>
+                            <select 
+                                value={selectedClass.standard}
+                                onChange={(e) => {
+                                    const standard = e.target.value;
+                                    setSelectedClass({ standard });
+                                    // Fetch messages for this class
+                                    const roomId = `class-${standard}`;
+                                    fetch(`${API}/chat/${roomId}`).then(r => r.json()).then(setChatMessages).catch(() => {});
+                                }}
+                                className="w-full p-3 bg-slate-800 border border-white/10 rounded-xl text-white text-sm font-semibold focus:border-violet-500 outline-none"
+                            >
+                                <option value="4">Class 4</option>
+                                <option value="5">Class 5</option>
+                                <option value="6">Class 6</option>
+                                <option value="7">Class 7</option>
+                                <option value="8">Class 8</option>
+                                <option value="9">Class 9</option>
+                                <option value="10">Class 10</option>
+                                <option value="11">Class 11</option>
+                                <option value="12">Class 12</option>
+                            </select>
+                            <div className="mt-2 flex items-center gap-2 text-[10px] text-slate-400">
+                                <span className="flex items-center gap-1">
+                                    📚 {classGroups.find(c => c.standard === selectedClass.standard)?.subject || 'Mathematics'}
+                                </span>
+                                <span>·</span>
+                                <span className="flex items-center gap-1">
+                                    👥 {classGroups.find(c => c.standard === selectedClass.standard)?.studentCount || 0} students
+                                </span>
                             </div>
-                            <button onClick={() => setShowAnnouncement(true)} className="text-xs font-bold bg-amber-600/20 text-amber-300 px-3 py-1.5 rounded-lg">📢 Broadcast</button>
+                        </div>
+                        
+                        {/* Chat Header */}
+                        <div className="flex items-center justify-between mb-4 bg-slate-800 rounded-2xl p-4 border border-white/5">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-violet-500 to-indigo-500 flex items-center justify-center font-bold text-sm">
+                                    {selectedClass.standard}
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-sm">Class {selectedClass.standard} Chat</h3>
+                                    <p className="text-[11px] text-emerald-400 font-semibold">👥 {onlineCount} online</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setShowAnnouncement(true)} className="text-xs font-bold bg-amber-600/20 text-amber-300 px-3 py-1.5 rounded-lg hover:bg-amber-600/30 transition-all">📢 Broadcast</button>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto space-y-3 pr-1">
-                            {chatMessages.map((msg, i) => {
-                                const isMe = msg.senderRole === 'teacher';
-                                if (msg.type === 'announcement') return (
-                                    <div key={msg._id || i} className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-center">
-                                        <p className="text-xs font-bold text-amber-300">📢 {msg.text}</p>
-                                    </div>
-                                );
-                                return (
-                                    <div key={msg._id || i} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                                        <div className={`max-w-[80%] ${isMe ? 'bg-violet-600 rounded-2xl rounded-tr-sm' : 'bg-slate-700 rounded-2xl rounded-tl-sm'} p-3 px-4`}>
-                                            {!isMe && <p className="text-[10px] font-bold text-indigo-300 mb-1">{msg.senderName}</p>}
-                                            <p className="text-sm">{msg.text}</p>
-                                            <p className="text-[9px] text-white/40 mt-1 text-right">{new Date(msg.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</p>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                            <div ref={chatEndRef} />
+                        {/* Messages */}
+                        <div className="flex-1 overflow-y-auto space-y-3 pr-1 bg-slate-800/30 rounded-2xl p-3 border border-white/5">
+                            {chatMessages.length === 0 ? (
+                                <div className="text-center py-12">
+                                    <div className="text-6xl mb-3">💬</div>
+                                    <p className="text-sm font-bold text-slate-400">No messages in Class {selectedClass.standard} yet</p>
+                                    <p className="text-[11px] text-slate-500 mt-1">Start the conversation with your students!</p>
+                                </div>
+                            ) : (
+                                <>
+                                    {chatMessages.map((msg, i) => {
+                                        const isMe = msg.senderRole === 'teacher';
+                                        if (msg.type === 'announcement') return (
+                                            <div key={msg._id || i} className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-center">
+                                                <p className="text-xs font-bold text-amber-300">📢 {msg.text}</p>
+                                                <p className="text-[9px] text-amber-400/60 mt-1">{new Date(msg.timestamp).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
+                                            </div>
+                                        );
+                                        return (
+                                            <div key={msg._id || i} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                                                <div className={`max-w-[80%] ${isMe ? 'bg-violet-600 rounded-2xl rounded-tr-sm' : 'bg-slate-700 rounded-2xl rounded-tl-sm'} p-3 px-4`}>
+                                                    {!isMe && (
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <p className="text-[10px] font-bold text-indigo-300">{msg.senderName}</p>
+                                                            <span className="text-[8px] bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded font-bold">STUDENT</span>
+                                                        </div>
+                                                    )}
+                                                    <p className="text-sm">{msg.text}</p>
+                                                    <p className="text-[9px] text-white/40 mt-1 text-right">{new Date(msg.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</p>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                    <div ref={chatEndRef} />
+                                </>
+                            )}
                         </div>
 
+                        {/* Chat Input */}
                         <div className="flex gap-2 mt-3">
-                            <input type="text" value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && sendChat()}
-                                className="flex-1 px-4 py-3 bg-slate-800 border border-white/10 rounded-xl text-white placeholder-slate-500 text-sm font-semibold focus:border-violet-500 outline-none" placeholder="Message your class..." />
-                            <button onClick={sendChat} className="w-12 h-12 bg-violet-600 rounded-xl flex items-center justify-center shrink-0 hover:bg-violet-500 active:scale-95"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg></button>
+                            <input 
+                                type="text" 
+                                value={chatInput} 
+                                onChange={(e) => setChatInput(e.target.value)} 
+                                onKeyDown={(e) => e.key === 'Enter' && sendChat()}
+                                className="flex-1 px-4 py-3 bg-slate-800 border border-white/10 rounded-xl text-white placeholder-slate-500 text-sm font-semibold focus:border-violet-500 outline-none" 
+                                placeholder={`Message Class ${selectedClass.standard}...`} 
+                            />
+                            <button onClick={sendChat} className="w-12 h-12 bg-violet-600 rounded-xl flex items-center justify-center shrink-0 hover:bg-violet-500 active:scale-95 transition-all">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                                </svg>
+                            </button>
+                        </div>
+                        
+                        {/* Info Footer */}
+                        <div className="mt-3 p-3 bg-slate-800/50 rounded-xl border border-white/5">
+                            <p className="text-[10px] text-slate-400 text-center">
+                                💡 You're chatting with <strong>Class {selectedClass.standard}</strong> ({selectedClass.subject}). 
+                                Switch classes above to chat with other groups.
+                            </p>
                         </div>
                     </div>
                 )}

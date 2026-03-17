@@ -1,14 +1,15 @@
 const express = require('express');
 const router = express.Router();
-const { 
-    verifyEmail, 
-    sendOtp, 
-    verifyOtp, 
-    registerUser, 
-    authUser, 
-    getUserProgress, 
-    saveUserProgress, 
-    getStudents 
+const {
+    verifyEmail,
+    sendOtp,
+    verifyOtp,
+    registerUser,
+    authUser,
+    getUserProgress,
+    saveUserProgress,
+    getStudents,
+    getUserProfile
 } = require('../controllers/userController');
 
 // Email verification & OTP routes
@@ -22,6 +23,7 @@ router.post('/login', authUser);               // Login user
 
 // User management routes
 router.get('/students', getStudents);          // Get all students (Teacher/Admin)
+router.get('/profile/:id', getUserProfile);    // Get user profile
 router.get('/progress/:id', getUserProgress);  // Get user progress
 router.put('/progress/:id', saveUserProgress); // Update user progress
 

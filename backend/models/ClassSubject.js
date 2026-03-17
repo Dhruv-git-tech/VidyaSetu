@@ -1,8 +1,7 @@
 const mongoose = require('mongoose');
 
 const classSubjectSchema = new mongoose.Schema({
-    standard: { type: String, enum: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'], required: true },
-    section: { type: String, enum: ['A', 'B', 'C', 'D', 'E', 'ALL'], required: true },
+    standard: { type: String, enum: ['4', '5', '6', '7', '8', '9', '10', '11', '12'], required: true },
     subject: { type: String, required: true },
     teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     teacherName: { type: String, required: true },

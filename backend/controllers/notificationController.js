@@ -1,17 +1,24 @@
 const Notification = require('../models/Notification');
 
-// @desc    Get notifications for a user (filtered by role)
+// @desc    Get notifications for a user (filtered by role and class)
 const getNotifications = async (req, res) => {
     const mongoose = require('mongoose');
     if (mongoose.connection.readyState !== 1) {
         return res.json([]);
     }
     try {
-        const { role, userId } = req.query;
+        const { role, userId, standard } = req.query;
         const filter = {};
         // Show notifications targeted to 'all' or the user's specific role
         if (role) {
             filter.$or = [{ targetRole: 'all' }, { targetRole: role + 's' }];
+        }
+        // Filter by class/standard if provided
+        if (standard) {
+            filter.$or = (filter.$or || []).concat([
+                { standard: 'ALL' },
+                { standard: standard }
+            ]);
         }
         const notifications = await Notification.find(filter)
             .sort({ createdAt: -1 })
@@ -65,7 +72,7 @@ const markAllAsRead = async (req, res) => {
 };
 
 // @desc    Create a notification (internal use — called from other controllers)
-const createNotification = async ({ title, message, type, referenceId, createdBy, createdByName, targetRole }) => {
+const createNotification = async ({ title, message, type, referenceId, createdBy, createdByName, targetRole, standard, section }) => {
     const mongoose = require('mongoose');
     if (mongoose.connection.readyState !== 1) return null;
     try {
@@ -74,6 +81,8 @@ const createNotification = async ({ title, message, type, referenceId, createdBy
             referenceId: referenceId || null,
             createdBy, createdByName,
             targetRole: targetRole || 'all',
+            standard: standard || 'ALL',
+            section: section || 'ALL',
         });
         return notification;
     } catch (error) {

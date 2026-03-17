@@ -23,8 +23,7 @@ export default function Login({ onLogin }) {
     const [serverSaved, setServerSaved] = useState(false);
     
     // Student registration fields
-    const [studentClass, setStudentClass] = useState('');  // Standard (1-12)
-    const [section, setSection] = useState('');  // Section (A-E)
+    const [studentClass, setStudentClass] = useState('');  // Standard (4-12)
     const [age, setAge] = useState('');
     const [parentName, setParentName] = useState('');
     const [parentOccupation, setParentOccupation] = useState('');
@@ -134,7 +133,7 @@ export default function Login({ onLogin }) {
                 ? { email, password }
                 : role === 'teacher'
                     ? { name, email, password, role, otp, subject: teacherSubject, phone: teacherPhone, age: teacherAge, address: teacherAddress, qualification: teacherQualification, experience: teacherExperience }
-                    : { name, email, password, role, otp, standard: studentClass, section, age, parentName, parentOccupation, parentMobile, address };
+                    : { name, email, password, role, otp, standard: studentClass, age, parentName, parentOccupation, parentMobile, address };
 
             const res = await fetch(url, { 
                 method: 'POST', 
@@ -342,185 +341,166 @@ export default function Login({ onLogin }) {
                             )}
 
                             {/* Step 3: Complete Registration */}
-                            {otpVerified && (
+                            {otpVerified && role === 'teacher' && (
                                 <>
                                     <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 text-center">
                                         <p className="text-emerald-400 text-sm font-semibold">✓ Email Verified</p>
                                     </div>
                                     
-                                    {role === 'teacher' ? (
-                                        <>
-                                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-4">Teacher Details</p>
-                                            
-                                            <div>
-                                                <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">Full Name <span className="text-red-500">*</span></label>
-                                                <input
-                                                    type="text"
-                                                    value={name}
-                                                    onChange={e => setName(e.target.value)}
-                                                    required
-                                                    className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3.5 text-white font-semibold text-sm focus:border-indigo-500 outline-none transition-colors"
-                                                    placeholder="Enter your full name"
-                                                />
-                                            </div>
-                                            
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <div>
-                                                    <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">Teaching Subject <span className="text-red-500">*</span></label>
-                                                    <select
-                                                        value={teacherSubject}
-                                                        onChange={e => setTeacherSubject(e.target.value)}
-                                                        required
-                                                        className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3.5 text-white font-semibold text-sm focus:border-indigo-500 outline-none transition-colors"
-                                                    >
-                                                        <option value="">Select Subject</option>
-                                                        <option value="Mathematics">Mathematics</option>
-                                                        <option value="Science">Science</option>
-                                                        <option value="English">English</option>
-                                                        <option value="History">History</option>
-                                                        <option value="Social Science">Social Science</option>
-                                                        <option value="Hindi">Hindi</option>
-                                                        <option value="Punjabi">Punjabi</option>
-                                                        <option value="Computer">Computer</option>
-                                                        <option value="Digital Literacy">Digital Literacy</option>
-                                                        <option value="Physics">Physics</option>
-                                                        <option value="Chemistry">Chemistry</option>
-                                                        <option value="Biology">Biology</option>
-                                                    </select>
-                                                </div>
-                                                <div>
-                                                    <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">Age <span className="text-red-500">*</span></label>
-                                                    <input
-                                                        type="number"
-                                                        value={teacherAge}
-                                                        onChange={e => setTeacherAge(e.target.value)}
-                                                        required
-                                                        min="21"
-                                                        max="65"
-                                                        className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3.5 text-white font-semibold text-sm focus:border-indigo-500 outline-none transition-colors"
-                                                        placeholder="Age"
-                                                    />
-                                                </div>
-                                            </div>
-                                            
-                                            <div>
-                                                <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">Phone Number <span className="text-red-500">*</span></label>
-                                                <input
-                                                    type="tel"
-                                                    value={teacherPhone}
-                                                    onChange={e => setTeacherPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                                                    pattern="[0-9]{10}"
-                                                    required
-                                                    className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3.5 text-white font-semibold text-sm focus:border-indigo-500 outline-none transition-colors"
-                                                    placeholder="10-digit mobile number"
-                                                />
-                                            </div>
-                                            
-                                            <div>
-                                                <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">Qualification</label>
-                                                <input
-                                                    type="text"
-                                                    value={teacherQualification}
-                                                    onChange={e => setTeacherQualification(e.target.value)}
-                                                    className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3.5 text-white font-semibold text-sm focus:border-indigo-500 outline-none transition-colors"
-                                                    placeholder="e.g., B.Ed, M.Sc, M.A"
-                                                />
-                                            </div>
-                                            
-                                            <div>
-                                                <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">Teaching Experience</label>
-                                                <input
-                                                    type="text"
-                                                    value={teacherExperience}
-                                                    onChange={e => setTeacherExperience(e.target.value)}
-                                                    className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3.5 text-white font-semibold text-sm focus:border-indigo-500 outline-none transition-colors"
-                                                    placeholder="e.g., 5 years, Fresher"
-                                                />
-                                            </div>
-                                            
-                                            <div>
-                                                <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">Address</label>
-                                                <textarea
-                                                    value={teacherAddress}
-                                                    onChange={e => setTeacherAddress(e.target.value)}
-                                                    rows="2"
-                                                    className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3.5 text-white font-semibold text-sm focus:border-indigo-500 outline-none transition-colors resize-none"
-                                                    placeholder="Enter residential address"
-                                                />
-                                            </div>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-4">Student Details</p>
-                                            
-                                            <div>
-                                                <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">Full Name <span className="text-red-500">*</span></label>
-                                                <input
-                                                    type="text"
-                                                    value={name}
-                                                    onChange={e => setName(e.target.value)}
-                                                    required
-                                                    className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3.5 text-white font-semibold text-sm focus:border-indigo-500 outline-none transition-colors"
-                                                    placeholder="Enter student's full name"
-                                                />
-                                            </div>
+                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-4">Teacher Details</p>
                                     
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div>
-                                            <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">Class <span className="text-red-500">*</span></label>
-                                            <select
-                                                value={studentClass}
-                                                onChange={e => setStudentClass(e.target.value)}
-                                                required
-                                                className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3.5 text-white font-semibold text-sm focus:border-indigo-500 outline-none transition-colors"
-                                            >
-                                                <option value="">Select</option>
-                                                <option value="1">Class 1</option>
-                                                <option value="2">Class 2</option>
-                                                <option value="3">Class 3</option>
-                                                <option value="4">Class 4</option>
-                                                <option value="5">Class 5</option>
-                                                <option value="6">Class 6</option>
-                                                <option value="7">Class 7</option>
-                                                <option value="8">Class 8</option>
-                                                <option value="9">Class 9</option>
-                                                <option value="10">Class 10</option>
-                                                <option value="11">Class 11</option>
-                                                <option value="12">Class 12</option>
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">Section <span className="text-red-500">*</span></label>
-                                            <select
-                                                value={section}
-                                                onChange={e => setSection(e.target.value)}
-                                                required
-                                                className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3.5 text-white font-semibold text-sm focus:border-indigo-500 outline-none transition-colors"
-                                            >
-                                                <option value="">Select</option>
-                                                <option value="A">Section A</option>
-                                                <option value="B">Section B</option>
-                                                <option value="C">Section C</option>
-                                                <option value="D">Section D</option>
-                                                <option value="E">Section E</option>
-                                            </select>
-                                        </div>
+                                    <div>
+                                        <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">Full Name <span className="text-red-500">*</span></label>
+                                        <input
+                                            type="text"
+                                            value={name}
+                                            onChange={e => setName(e.target.value)}
+                                            required
+                                            className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3.5 text-white font-semibold text-sm focus:border-indigo-500 outline-none transition-colors"
+                                            placeholder="Enter your full name"
+                                        />
                                     </div>
                                     
                                     <div className="grid grid-cols-2 gap-3">
                                         <div>
+                                            <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">Teaching Subject <span className="text-red-500">*</span></label>
+                                            <select
+                                                value={teacherSubject}
+                                                onChange={e => setTeacherSubject(e.target.value)}
+                                                required
+                                                className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3.5 text-white font-semibold text-sm focus:border-indigo-500 outline-none transition-colors"
+                                            >
+                                                <option value="">Select Subject</option>
+                                                <option value="Mathematics">Mathematics</option>
+                                                <option value="Science">Science</option>
+                                                <option value="English">English</option>
+                                                <option value="History">History</option>
+                                                <option value="Social Science">Social Science</option>
+                                                <option value="Hindi">Hindi</option>
+                                                <option value="Punjabi">Punjabi</option>
+                                                <option value="Computer">Computer</option>
+                                                <option value="Digital Literacy">Digital Literacy</option>
+                                                <option value="Physics">Physics</option>
+                                                <option value="Chemistry">Chemistry</option>
+                                                <option value="Biology">Biology</option>
+                                            </select>
+                                        </div>
+                                        <div>
                                             <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">Age <span className="text-red-500">*</span></label>
                                             <input
                                                 type="number"
-                                                value={age}
-                                                onChange={e => setAge(e.target.value)}
+                                                value={teacherAge}
+                                                onChange={e => setTeacherAge(e.target.value)}
                                                 required
-                                                min="5"
-                                                max="18"
+                                                min="21"
+                                                max="65"
                                                 className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3.5 text-white font-semibold text-sm focus:border-indigo-500 outline-none transition-colors"
                                                 placeholder="Age"
                                             />
                                         </div>
+                                    </div>
+                                    
+                                    <div>
+                                        <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">Phone Number <span className="text-red-500">*</span></label>
+                                        <input
+                                            type="tel"
+                                            value={teacherPhone}
+                                            onChange={e => setTeacherPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                                            pattern="[0-9]{10}"
+                                            required
+                                            className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3.5 text-white font-semibold text-sm focus:border-indigo-500 outline-none transition-colors"
+                                            placeholder="10-digit mobile number"
+                                        />
+                                    </div>
+                                    
+                                    <div>
+                                        <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">Qualification</label>
+                                        <input
+                                            type="text"
+                                            value={teacherQualification}
+                                            onChange={e => setTeacherQualification(e.target.value)}
+                                            className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3.5 text-white font-semibold text-sm focus:border-indigo-500 outline-none transition-colors"
+                                            placeholder="e.g., B.Ed, M.Sc, M.A"
+                                        />
+                                    </div>
+                                    
+                                    <div>
+                                        <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">Teaching Experience</label>
+                                        <input
+                                            type="text"
+                                            value={teacherExperience}
+                                            onChange={e => setTeacherExperience(e.target.value)}
+                                            className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3.5 text-white font-semibold text-sm focus:border-indigo-500 outline-none transition-colors"
+                                            placeholder="e.g., 5 years, Fresher"
+                                        />
+                                    </div>
+                                    
+                                    <div>
+                                        <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">Address</label>
+                                        <textarea
+                                            value={teacherAddress}
+                                            onChange={e => setTeacherAddress(e.target.value)}
+                                            rows="2"
+                                            className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3.5 text-white font-semibold text-sm focus:border-indigo-500 outline-none transition-colors resize-none"
+                                            placeholder="Enter residential address"
+                                        />
+                                    </div>
+                                </>
+                            )}
+                            
+                            {otpVerified && role === 'student' && (
+                                <>
+                                    <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 text-center">
+                                        <p className="text-emerald-400 text-sm font-semibold">✓ Email Verified</p>
+                                    </div>
+                                    
+                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-4">Student Details</p>
+                                    
+                                    <div>
+                                        <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">Full Name <span className="text-red-500">*</span></label>
+                                        <input
+                                            type="text"
+                                            value={name}
+                                            onChange={e => setName(e.target.value)}
+                                            required
+                                            className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3.5 text-white font-semibold text-sm focus:border-indigo-500 outline-none transition-colors"
+                                            placeholder="Enter student's full name"
+                                        />
+                                    </div>
+                                    
+                                    <div>
+                                        <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">Class <span className="text-red-500">*</span></label>
+                                        <select
+                                            value={studentClass}
+                                            onChange={e => setStudentClass(e.target.value)}
+                                            required
+                                            className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3.5 text-white font-semibold text-sm focus:border-indigo-500 outline-none transition-colors"
+                                        >
+                                            <option value="">Select</option>
+                                            <option value="4">Class 4</option>
+                                            <option value="5">Class 5</option>
+                                            <option value="6">Class 6</option>
+                                            <option value="7">Class 7</option>
+                                            <option value="8">Class 8</option>
+                                            <option value="9">Class 9</option>
+                                            <option value="10">Class 10</option>
+                                            <option value="11">Class 11</option>
+                                            <option value="12">Class 12</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div>
+                                        <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">Age <span className="text-red-500">*</span></label>
+                                        <input
+                                            type="number"
+                                            value={age}
+                                            onChange={e => setAge(e.target.value)}
+                                            required
+                                            min="5"
+                                            max="18"
+                                            className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3.5 text-white font-semibold text-sm focus:border-indigo-500 outline-none transition-colors"
+                                            placeholder="Age"
+                                        />
                                     </div>
                                     
                                     <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-2">Parent/Guardian Details</p>
@@ -569,9 +549,12 @@ export default function Login({ onLogin }) {
                                             placeholder="Enter residential address"
                                         />
                                     </div>
-                                        </>
-                                    )}
-                                    
+                                </>
+                            )}
+                            
+                            {/* Password field - common for both teacher and student */}
+                            {otpVerified && (
+                                <>
                                     <div>
                                         <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">Password <span className="text-red-500">*</span></label>
                                         <div className="relative">
@@ -593,7 +576,7 @@ export default function Login({ onLogin }) {
                                             </button>
                                         </div>
                                     </div>
-                                    
+
                                     <button
                                         type="submit"
                                         disabled={loading}
@@ -618,7 +601,6 @@ export default function Login({ onLogin }) {
                             setOtpVerified(false);
                             setName('');
                             setStudentClass('');
-                            setSection('');
                             setAge('');
                             setParentName('');
                             setParentOccupation('');

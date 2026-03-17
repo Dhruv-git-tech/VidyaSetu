@@ -15,8 +15,7 @@ const userSchema = new mongoose.Schema({
     schoolRef: { type: mongoose.Schema.Types.ObjectId, ref: 'School' },
     
     // Student specific fields
-    standard: { type: String, enum: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'], default: '' },  // Class standard (1-12)
-    section: { type: String, enum: ['A', 'B', 'C', 'D', 'E'], default: '' },  // Section within class
+    standard: { type: String, enum: ['4', '5', '6', '7', '8', '9', '10', '11', '12', ''], default: '' },  // Class standard (4-12) or empty for teachers
     age: { type: Number, default: 0 },
     parentName: { type: String, default: '' },
     parentOccupation: { type: String, default: '' },

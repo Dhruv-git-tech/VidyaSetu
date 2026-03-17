@@ -13,7 +13,8 @@ const quizSchema = new mongoose.Schema({
     title: { type: String, required: true },
     lessonId: { type: mongoose.Schema.Types.ObjectId, ref: 'Lesson' },
     subject: { type: String, default: '' },
-    grade: { type: String, default: '8' },
+    standard: { type: String, enum: ['4', '5', '6', '7', '8', '9', '10', '11', '12'], required: true },  // Target class (4-12)
+    grade: { type: String, default: '8' },  // Legacy field
     language: { type: String, enum: ['English', 'Punjabi', 'Hindi'], default: 'English' },
     questions: [questionSchema],
     totalPoints: { type: Number, default: 0 },

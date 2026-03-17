@@ -444,6 +444,39 @@ const getStudents = async (req, res) => {
     }
 };
 
+/**
+ * Get user profile by ID
+ */
+const getUserProfile = async (req, res) => {
+    const mongoose = require('mongoose');
+    if (mongoose.connection.readyState !== 1) {
+        return res.json({ _id: 'mock-user', name: 'Mock User', standard: '8', section: 'A' });
+    }
+
+    try {
+        const user = await User.findById(req.params.id).select('-password');
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+        
+        // Return user profile with all fields
+        res.json({
+            standard: user.standard,
+            section: user.section,
+            age: user.age,
+            parentName: user.parentName,
+            parentOccupation: user.parentOccupation,
+            parentMobile: user.parentMobile,
+            address: user.address,
+            language: user.language,
+            schoolId: user.schoolId,
+            totalPoints: user.totalPoints || 0,
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
 module.exports = {
     verifyEmail,
     sendOtp,
@@ -452,5 +485,6 @@ module.exports = {
     authUser,
     getUserProgress,
     saveUserProgress,
-    getStudents
+    getStudents,
+    getUserProfile
 };

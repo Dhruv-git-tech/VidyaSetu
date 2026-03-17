@@ -17,15 +17,11 @@ const getLessons = async (req, res) => {
         ]);
     }
     try {
-        const { subject, standard, section, language, grade } = req.query;
+        const { subject, standard, language, grade } = req.query;
         const filter = { isPublished: true };
         
         if (subject) filter.subject = subject;
         if (standard) filter.standard = standard;
-        if (section) {
-            // Show lessons for specific section OR lessons marked for ALL sections
-            filter.section = { $in: [section, 'ALL'] };
-        }
         if (language) filter.language = language;
         if (grade) filter.grade = grade;  // Legacy support
         
@@ -63,7 +59,7 @@ const createLesson = async (req, res) => {
     try {
         const lesson = await Lesson.create({ ...req.body, createdBy: req.user?.userId || req.body.createdBy });
 
-        // Create notification for new lesson
+        // Create notification for new lesson with class-specific targeting
         const notification = await createNotification({
             title: 'New Lesson Published',
             message: `"${lesson.title}" has been added to ${lesson.subject || 'your course'} for Class ${lesson.standard}`,
@@ -72,6 +68,7 @@ const createLesson = async (req, res) => {
             createdBy: req.user?.userId || req.body.createdBy,
             createdByName: req.body.createdByName || 'Teacher',
             targetRole: 'all',
+            standard: lesson.standard || 'ALL',
         });
         // Broadcast real-time notification to all connected clients
         const io = getIO();

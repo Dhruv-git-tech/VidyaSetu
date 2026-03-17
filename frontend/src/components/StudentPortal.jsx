@@ -14,6 +14,14 @@ const resolveUrl = (url) => {
     if (url.startsWith('http://localhost:5001/uploads/') || url.startsWith('http://127.0.0.1:5001/uploads/')) {
         return `${SOCKET_URL}/uploads/${url.split('/uploads/')[1]}`;
     }
+    // Fix Cloudinary URLs - replace old cloud name with correct one
+    if (url.includes('cloudinary.com')) {
+        // Replace old cloud name with correct one
+        let fixedUrl = url.replace('dpnkgdq6z', 'vidyasetu');
+        // Add optimization parameters
+        const separator = fixedUrl.includes('?') ? '&' : '?';
+        return `${fixedUrl}${separator}f_auto&q=auto`;
+    }
     return url;
 };
 // Detect direct mp4 video URLs (local, Cloudinary, or any direct file)
@@ -31,6 +39,16 @@ export default function StudentPortal({ user }) {
     const [isOnline, setIsOnline] = useState(navigator.onLine);
     const [onlineCount, setOnlineCount] = useState(0);
     const [offlineUsageBytes, setOfflineUsageBytes] = useState(null);
+
+    // Streak & Activity Tracking
+    const [streak, setStreak] = useState(() => {
+        const saved = localStorage.getItem(`streak_${user?._id}`);
+        return saved ? parseInt(saved) : 0;
+    });
+    const [lastActiveDate, setLastActiveDate] = useState(() => {
+        return localStorage.getItem(`lastActive_${user?._id}`) || null;
+    });
+    const [todayProgress, setTodayProgress] = useState(0);
 
     // Lesson Viewer State
     const [activeLesson, setActiveLesson] = useState(null);
@@ -78,6 +96,9 @@ export default function StudentPortal({ user }) {
     };
 
     useEffect(() => {
+        // Update streak on component mount
+        updateStreak();
+
         // Estimate local storage usage (IndexedDB, Cache, etc.) for this origin
         if (typeof navigator !== 'undefined' && navigator.storage && navigator.storage.estimate) {
             navigator.storage.estimate()
@@ -91,7 +112,10 @@ export default function StudentPortal({ user }) {
                 });
         }
 
-        socket.emit('join_class', 'class-8a');
+        // Join socket room based on student's class
+        const standard = user?.standard || '8';
+        const roomId = `class-${standard}`;
+        socket.emit('join_class', roomId);
         socket.on('presence:online_count', (data) => setOnlineCount(data.count));
         // Deduplicate chat messages by _id
         socket.on('chat:message', (msg) => setChatMessages(prev => {
@@ -117,7 +141,7 @@ export default function StudentPortal({ user }) {
             if (notif.type === 'quiz') {
                 fetch(`${API}/quizzes`).then(r => r.json()).then(data => {
                     if (Array.isArray(data)) setQuizzes(data);
-                }).catch(() => {});
+                }).catch(() => { });
             }
             if (notif.type === 'lesson') {
                 // Refetch lessons for this student's class
@@ -131,16 +155,15 @@ export default function StudentPortal({ user }) {
         window.addEventListener('online', goOnline);
         window.addEventListener('offline', goOffline);
 
-        // Fetch notifications
-        fetch(`${API}/notifications?role=student&userId=${user?._id || ''}`).then(r => r.json()).then(data => {
+        // Fetch notifications filtered by student's class
+        fetch(`${API}/notifications?role=student&userId=${user?._id || ''}&standard=${user?.standard || '8'}`).then(r => r.json()).then(data => {
             if (Array.isArray(data)) setNotifications(data);
-        }).catch(() => {});
+        }).catch(() => { });
 
-        // Fetch lessons filtered by student's class and section
+        // Fetch lessons filtered by student's class
         const fetchLessons = () => {
             const standard = user?.standard || '8';
-            const section = user?.section || 'ALL';
-            fetch(`${API}/lessons?standard=${standard}&section=${section}`).then(r => r.json()).then(data => {
+            fetch(`${API}/lessons?standard=${standard}`).then(r => r.json()).then(data => {
                 if (!Array.isArray(data)) { console.warn('Lessons API returned non-array:', data); return; }
                 // Normalize YouTube URLs in lessons
                 const normalized = data.map(l => ({ ...l, contentUrl: normalizeYouTubeUrl(l.contentUrl) }));
@@ -148,19 +171,21 @@ export default function StudentPortal({ user }) {
             }).catch((err) => { console.warn('Lessons fetch error:', err); });
         };
         fetchLessons();
-        
-        fetch(`${API}/quizzes`).then(r => r.json()).then(setQuizzes).catch(() => { });
-        fetch(`${API}/chat/class-8a`).then(r => r.json()).then(setChatMessages).catch(() => { });
 
-        // Load saved progress from API or localStorage
-        if (user?._id) {
-            fetch(`${API}/users/progress/${user._id}`).then(r => r.json()).then(data => {
-                if (data.progress && data.progress.length > 0 && data.progress[0].score) {
-                    setProgress(data.progress[0].score);
-                    localStorage.setItem(`progress_${user._id}`, data.progress[0].score);
-                }
-            }).catch(() => { });
-        }
+        // Fetch quizzes filtered by student's class
+        const fetchQuizzes = () => {
+            const standard = user?.standard || '8';
+            fetch(`${API}/quizzes?standard=${standard}`).then(r => r.json()).then(data => {
+                if (!Array.isArray(data)) { console.warn('Quizzes API returned non-array:', data); return; }
+                setQuizzes(data);
+            }).catch((err) => { console.warn('Quizzes fetch error:', err); });
+        };
+        fetchQuizzes();
+
+        // Fetch chat messages for student's class
+        const chatStandard = user?.standard || '8';
+        const chatRoomId = `class-${chatStandard}`;
+        fetch(`${API}/chat/${chatRoomId}`).then(r => r.json()).then(setChatMessages).catch(() => { });
 
         return () => {
             socket.off('chat:message');
@@ -173,10 +198,84 @@ export default function StudentPortal({ user }) {
         };
     }, []);
 
+    // Update streak logic
+    const updateStreak = () => {
+        const today = new Date().toDateString();
+        const yesterday = new Date(Date.now() - 86400000).toDateString();
+
+        // Load today's progress
+        const savedTodayProgress = localStorage.getItem(`todayProgress_${user?._id}`);
+        const todayDate = localStorage.getItem(`todayProgressDate_${user?._id}`);
+
+        if (todayDate !== today) {
+            setTodayProgress(0);
+        } else if (savedTodayProgress) {
+            setTodayProgress(parseInt(savedTodayProgress));
+        }
+
+        if (lastActiveDate === today) {
+            // Already active today - keep streak
+            return;
+        } else if (lastActiveDate === yesterday) {
+            // Active yesterday - continue streak
+            const newStreak = streak + 1;
+            setStreak(newStreak);
+            setLastActiveDate(today);
+            localStorage.setItem(`streak_${user?._id}`, newStreak.toString());
+            localStorage.setItem(`lastActive_${user?._id}`, today);
+        } else if (!lastActiveDate || lastActiveDate !== today) {
+            // First time or streak broken - start new streak
+            const newStreak = 1;
+            setStreak(newStreak);
+            setLastActiveDate(today);
+            localStorage.setItem(`streak_${user?._id}`, newStreak.toString());
+            localStorage.setItem(`lastActive_${user?._id}`, today);
+        }
+    };
+
+    // Increment today's progress (call this when user completes a lesson/quiz)
+    const incrementTodayProgress = () => {
+        const today = new Date().toDateString();
+        const newProgress = todayProgress + 1;
+        setTodayProgress(newProgress);
+        localStorage.setItem(`todayProgress_${user?._id}`, newProgress.toString());
+        localStorage.setItem(`todayProgressDate_${user?._id}`, today);
+
+        // Update streak if completing first activity of the day
+        if (todayProgress === 0) {
+            updateStreak();
+        }
+    };
+
+    // Save progress with streak update
+    const saveProgress = async (newProgress) => {
+        setIsSaving(true);
+        try {
+            setProgress(newProgress);
+            localStorage.setItem(`progress_${user?._id}`, newProgress.toString());
+
+            // Increment today's activity
+            incrementTodayProgress();
+
+            // Sync to backend if online
+            if (isOnline && user?._id) {
+                await fetch(`${API}/users/progress/${user._id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ progress: newProgress })
+                });
+            }
+        } catch (error) {
+            console.error('Progress save error:', error);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
     // Load saved offline video lesson IDs on mount
     useEffect(() => {
-        getSavedLessonIds().then(setSavedLessonIds).catch(() => {});
-        getOfflineStorageUsed().then(setOfflineUsageBytes).catch(() => {});
+        getSavedLessonIds().then(setSavedLessonIds).catch(() => { });
+        getOfflineStorageUsed().then(setOfflineUsageBytes).catch(() => { });
     }, []);
 
     // When opening a lesson, check for offline video first
@@ -185,7 +284,7 @@ export default function StudentPortal({ user }) {
             setOfflineVideoUrl(null);
             getOfflineVideoUrl(activeLesson._id).then(url => {
                 if (url) setOfflineVideoUrl(url);
-            }).catch(() => {});
+            }).catch(() => { });
         }
         return () => {
             // Revoke old blob URL to free memory
@@ -196,19 +295,34 @@ export default function StudentPortal({ user }) {
     const handleDownloadVideo = async (lesson) => {
         const videoUrl = resolveUrl(lesson.compressedContentUrl || lesson.contentUrl);
         if (!videoUrl || downloadingId) return;
+
+        console.log('Downloading video:', videoUrl);
         setDownloadingId(lesson._id);
         setDownloadProgress(0);
+
         try {
             // Use XMLHttpRequest for progress tracking
             const xhr = new XMLHttpRequest();
             xhr.responseType = 'blob';
+
             const blob = await new Promise((resolve, reject) => {
-                xhr.onprogress = (e) => { if (e.lengthComputable) setDownloadProgress(Math.round((e.loaded / e.total) * 100)); };
-                xhr.onload = () => resolve(xhr.response);
-                xhr.onerror = () => reject(new Error('Download failed'));
+                xhr.onprogress = (e) => {
+                    if (e.lengthComputable) {
+                        setDownloadProgress(Math.round((e.loaded / e.total) * 100));
+                    }
+                };
+                xhr.onload = () => {
+                    if (xhr.status === 200) {
+                        resolve(xhr.response);
+                    } else {
+                        reject(new Error(`Download failed with status ${xhr.status}`));
+                    }
+                };
+                xhr.onerror = () => reject(new Error('Network error during download'));
                 xhr.open('GET', videoUrl);
                 xhr.send();
             });
+
             // Save to IndexedDB
             const { openDB } = await import('idb');
             const db = await openDB('VidyaSetuOfflineDB', 2);
@@ -219,20 +333,23 @@ export default function StudentPortal({ user }) {
                 savedAt: new Date().toISOString(),
                 size: blob.size,
             });
+
             setSavedLessonIds(prev => [...prev, lesson._id]);
-            getOfflineStorageUsed().then(setOfflineUsageBytes).catch(() => {});
+            getOfflineStorageUsed().then(setOfflineUsageBytes).catch(() => { });
+            alert('Video downloaded successfully! Available offline now.');
         } catch (e) {
             console.error('Download failed:', e);
-            alert('Download failed. Please try again.');
+            alert(`Download failed: ${e.message}. Make sure you're online and try again.`);
+        } finally {
+            setDownloadingId(null);
+            setDownloadProgress(0);
         }
-        setDownloadingId(null);
-        setDownloadProgress(0);
     };
 
     const handleDeleteDownload = async (lessonId) => {
         await deleteOfflineVideo(lessonId);
         setSavedLessonIds(prev => prev.filter(id => id !== lessonId));
-        getOfflineStorageUsed().then(setOfflineUsageBytes).catch(() => {});
+        getOfflineStorageUsed().then(setOfflineUsageBytes).catch(() => { });
     };
 
     useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatMessages]);
@@ -310,7 +427,16 @@ export default function StudentPortal({ user }) {
 
     const sendChat = () => {
         if (!chatInput.trim()) return;
-        socket.emit('chat:send', { roomId: 'class-8a', text: chatInput, senderId: user._id, senderName: user.name, senderRole: 'student' });
+        // Use class-specific room
+        const standard = user?.standard || '8';
+        const roomId = `class-${standard}`;
+        socket.emit('chat:send', {
+            roomId,
+            text: chatInput,
+            senderId: user._id,
+            senderName: user.name,
+            senderRole: 'student'
+        });
         setChatInput('');
     };
 
@@ -384,7 +510,17 @@ export default function StudentPortal({ user }) {
                 <div className="flex-1 overflow-y-auto pb-24">
                     {(activeLesson.compressedContentUrl || activeLesson.contentUrl) ? (() => {
                         // Use offline cached video if available, otherwise resolve server URL
-                        const videoUrl = offlineVideoUrl || resolveUrl(activeLesson.compressedContentUrl || activeLesson.contentUrl);
+                        const rawUrl = offlineVideoUrl || activeLesson.compressedContentUrl || activeLesson.contentUrl;
+                        const videoUrl = resolveUrl(rawUrl);
+
+                        console.log('Video URLs:', {
+                            raw: rawUrl,
+                            resolved: videoUrl,
+                            offline: offlineVideoUrl,
+                            compressed: activeLesson.compressedContentUrl,
+                            content: activeLesson.contentUrl
+                        });
+
                         // Extract YouTube video ID for direct iframe embed (works reliably on Android WebView)
                         const ytMatch = videoUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/);
                         if (ytMatch) {
@@ -403,24 +539,62 @@ export default function StudentPortal({ user }) {
                                 </div>
                             );
                         }
-                        // Use native <video> for all direct mp4/Cloudinary URLs — works on Android WebView
-                        if (isDirectVideo(videoUrl)) {
+                        // Use ReactPlayer for YouTube URLs only
+                        const isYouTube = videoUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/);
+                        if (isYouTube) {
                             return (
-                                <div className="w-full bg-black border-b border-white/10">
-                                    <video
-                                        src={videoUrl}
-                                        controls
-                                        style={{ width: '100%', maxHeight: '280px', display: 'block' }}
-                                        onTimeUpdate={(e) => setLessonProgress((e.target.currentTime / e.target.duration) * 100 || 0)}
-                                        onError={(e) => console.error('Video error:', e.target.error)}
-                                        playsInline
+                                <div className="w-full aspect-video bg-black border-b border-white/10">
+                                    <iframe
+                                        src={`https://www.youtube.com/embed/${isYouTube[1]}?autoplay=1&rel=0&modestbranding=1`}
+                                        width="100%"
+                                        height="100%"
+                                        frameBorder="0"
+                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                        allowFullScreen
+                                        title={activeLesson.title}
+                                        style={{ border: 'none' }}
                                     />
                                 </div>
                             );
                         }
+                        // Use native HTML5 video for Cloudinary and direct MP4 URLs
                         return (
-                            <div className="w-full aspect-video bg-black border-b border-white/10">
-                                <ReactPlayer url={videoUrl} width="100%" height="100%" controls={true} onProgress={({ played }) => setLessonProgress(played * 100)} />
+                            <div className="w-full bg-black border-b border-white/10">
+                                <video
+                                    src={videoUrl}
+                                    controls
+                                    style={{ width: '100%', maxHeight: '320px', display: 'block', margin: '0 auto' }}
+                                    onTimeUpdate={(e) => setLessonProgress((e.target.currentTime / e.target.duration) * 100 || 0)}
+                                    onError={(e) => {
+                                        console.error('Video error:', e.target.error);
+                                        console.error('Video URL:', videoUrl);
+                                        console.error('Error code:', e.target.error?.code);
+                                        console.error('Error message:', e.target.error?.message);
+                                    }}
+                                    playsInline
+                                    crossOrigin="anonymous"
+                                    preload="metadata"
+                                >
+                                    Your browser does not support the video tag.
+                                </video>
+                                {/* Fallback link for videos that don't play */}
+                                <div className="text-center p-3 bg-slate-800/50">
+                                    <p className="text-[10px] text-slate-400 mb-2">Having trouble? Try these:</p>
+                                    <div className="flex gap-2 justify-center">
+                                        <a href={videoUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-indigo-400 bg-indigo-500/10 px-3 py-1.5 rounded-lg hover:bg-indigo-500/20">
+                                            📺 Open in New Tab
+                                        </a>
+                                        <button
+                                            onClick={() => {
+                                                navigator.clipboard.writeText(videoUrl);
+                                                alert('Video URL copied! Paste it in a new tab.');
+                                            }}
+                                            className="text-[10px] font-bold text-violet-400 bg-violet-500/10 px-3 py-1.5 rounded-lg hover:bg-violet-500/20"
+                                        >
+                                            📋 Copy URL
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         );
                     })() : (
@@ -443,9 +617,10 @@ export default function StudentPortal({ user }) {
                         <div>
                             <h1 className="text-2xl font-black mb-2">{activeLesson.title}</h1>
                             <div className="flex flex-wrap gap-2">
-                                <span className="text-[10px] uppercase font-bold text-slate-400 bg-slate-800 px-2 py-1 rounded-md">{activeLesson.language || 'English'}</span>
+                                <span className="text-[10px] uppercase font-bold text-indigo-300 bg-indigo-500/10 px-2 py-1 rounded-md">📚 {activeLesson.subject}</span>
+                                <span className="text-[10px] uppercase font-bold text-violet-300 bg-violet-500/10 px-2 py-1 rounded-md">🎓 Class {activeLesson.standard}</span>
+                                {activeLesson.createdByName && <span className="text-[10px] uppercase font-bold text-emerald-300 bg-emerald-500/10 px-2 py-1 rounded-md">👨‍🏫 {activeLesson.createdByName}</span>}
                                 <span className="text-[10px] uppercase font-bold text-slate-400 bg-slate-800 px-2 py-1 rounded-md">⏱ {activeLesson.duration || 30} mins</span>
-                                {activeLesson.grade && <span className="text-[10px] uppercase font-bold text-slate-400 bg-slate-800 px-2 py-1 rounded-md">Grade {activeLesson.grade}</span>}
                             </div>
                         </div>
 
@@ -457,7 +632,7 @@ export default function StudentPortal({ user }) {
                         )}
 
                         {activeLesson.pdfUrl && (
-                            <a href={activeLesson.pdfUrl} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-4 bg-indigo-600/20 border border-indigo-500/30 rounded-2xl hover:bg-indigo-600/30 transition-colors">
+                            <a href={resolveUrl(activeLesson.pdfUrl)} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-4 bg-indigo-600/20 border border-indigo-500/30 rounded-2xl hover:bg-indigo-600/30 transition-colors">
                                 <div className="flex items-center gap-3"><span className="text-2xl">📄</span><div><p className="text-sm font-bold text-indigo-300">Open PDF Notes</p><p className="text-[10px] text-indigo-400/60 font-semibold">{activeLesson.title} Notes</p></div></div>
                                 <svg className="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
                             </a>
@@ -636,7 +811,7 @@ export default function StudentPortal({ user }) {
                             <h3 className="text-sm font-extrabold text-white">Notifications</h3>
                             {notifications.filter(n => !n.read).length > 0 && (
                                 <button onClick={() => {
-                                    fetch(`${API}/notifications/read-all`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user?._id }) }).catch(() => {});
+                                    fetch(`${API}/notifications/read-all`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user?._id }) }).catch(() => { });
                                     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
                                 }} className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300">Mark all read</button>
                             )}
@@ -650,7 +825,7 @@ export default function StudentPortal({ user }) {
                                     onClick={() => {
                                         // Mark as read
                                         if (!notif.read) {
-                                            fetch(`${API}/notifications/${notif._id}/read`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user?._id }) }).catch(() => {});
+                                            fetch(`${API}/notifications/${notif._id}/read`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user?._id }) }).catch(() => { });
                                             setNotifications(prev => prev.map(n => n._id === notif._id ? { ...n, read: true } : n));
                                         }
                                         // Navigate based on type
@@ -712,7 +887,7 @@ export default function StudentPortal({ user }) {
                     <div>
                         <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-2">Continue Where You Left Off</p>
                         <div className="bg-slate-800 rounded-2xl overflow-hidden border border-white/5">
-                            <div className="h-40 relative flex items-end p-4 bg-slate-800" style={{ backgroundImage: `url('https://images.unsplash.com/photo-1632516643736-6dae1c4562fa?q=80&w=800&auto=format&fit=crop')`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
+                            <div className="h-40 relative flex items-end p-4 bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700">
                                 <div className="absolute inset-0 bg-gradient-to-t from-slate-900 to-transparent"></div>
                                 <div className="relative z-10 w-full">
                                     <span className="text-[10px] font-extrabold uppercase tracking-wider bg-indigo-600 px-2 py-1 rounded-md mb-2 inline-block">Current Focus</span>
@@ -835,36 +1010,100 @@ export default function StudentPortal({ user }) {
                 {/* ──── CHAT TAB ──── */}
                 {activeTab === 'chat' && (
                     <div className="flex flex-col" style={{ height: 'calc(100vh - 200px)' }}>
-                        {/* Chat Header */}
-                        <div className="flex items-center gap-3 mb-4">
-                            <div className="w-10 h-10 rounded-full bg-violet-600 flex items-center justify-center font-bold text-sm">MS</div>
-                            <div><h3 className="font-bold text-sm">Mr. Sharma</h3><p className="text-[11px] text-emerald-400 font-semibold">🟢 Live Class · 👥 {onlineCount} online</p></div>
+                        {/* Chat Header - Class Specific */}
+                        <div className="bg-slate-800 rounded-2xl p-4 border border-white/5 mb-4">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-indigo-500 to-violet-500 flex items-center justify-center font-bold text-lg">
+                                        {user?.standard || '8'}
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-sm">Class {user?.standard || '8'} Group</h3>
+                                        <p className="text-[11px] text-emerald-400 font-semibold">
+                                            🟢 {onlineCount} students & teachers online
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-[10px] text-slate-400 font-semibold">Doubts & Discussion</p>
+                                    <p className="text-[9px] text-slate-500">{chatMessages.length} messages</p>
+                                </div>
+                            </div>
                         </div>
 
-                        {/* Messages */}
-                        <div className="flex-1 overflow-y-auto space-y-3 pr-1">
-                            {chatMessages.map((msg, i) => {
-                                const isMe = msg.senderId === user._id || msg.senderName === user.name;
-                                return (
-                                    <div key={msg._id || i} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                                        <div className={`max-w-[80%] ${isMe ? 'bg-indigo-600 rounded-2xl rounded-tr-sm' : 'bg-slate-700 rounded-2xl rounded-tl-sm'} p-3 px-4`}>
-                                            {!isMe && <p className="text-[10px] font-bold text-indigo-300 mb-1">{msg.senderName}</p>}
-                                            <p className="text-sm">{msg.text}</p>
-                                            <p className="text-[9px] text-white/40 mt-1 text-right">{new Date(msg.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</p>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                            {typingUser && <p className="text-xs text-slate-500 italic">{typingUser} is typing...</p>}
-                            <div ref={chatEndRef} />
+                        {/* Messages - Class Chat Room */}
+                        <div className="flex-1 overflow-y-auto space-y-3 pr-1 bg-slate-800/30 rounded-2xl p-3 border border-white/5">
+                            {chatMessages.length === 0 ? (
+                                <div className="text-center py-12">
+                                    <div className="text-6xl mb-3">💬</div>
+                                    <p className="text-sm font-bold text-slate-400">No messages yet</p>
+                                    <p className="text-[11px] text-slate-500 mt-1">Start the conversation with your classmates!</p>
+                                </div>
+                            ) : (
+                                <>
+                                    {chatMessages.map((msg, i) => {
+                                        const isMe = msg.senderId === user._id || msg.senderName === user.name;
+                                        const isTeacher = msg.senderRole === 'teacher';
+                                        return (
+                                            <div key={msg._id || i} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                                                <div className={`max-w-[80%] ${isMe ? 'bg-indigo-600 rounded-2xl rounded-tr-sm' : isTeacher ? 'bg-emerald-600/20 border border-emerald-500/30 rounded-2xl rounded-tl-sm' : 'bg-slate-700 rounded-2xl rounded-tl-sm'} p-3 px-4`}>
+                                                    {!isMe && (
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <p className={`text-[10px] font-bold ${isTeacher ? 'text-emerald-400' : 'text-indigo-300'}`}>
+                                                                {isTeacher ? '👨‍🏫 ' : ''}{msg.senderName}
+                                                            </p>
+                                                            {isTeacher && (
+                                                                <span className="text-[8px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded font-bold">TEACHER</span>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                    <p className="text-sm">{msg.text}</p>
+                                                    <p className="text-[9px] text-white/40 mt-1 text-right">
+                                                        {new Date(msg.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                    {typingUser && <p className="text-xs text-slate-500 italic">{typingUser} is typing...</p>}
+                                    <div ref={chatEndRef} />
+                                </>
+                            )}
                         </div>
 
                         {/* Chat Input */}
                         <div className="flex gap-2 mt-3">
-                            <input type="text" value={chatInput} onChange={(e) => { setChatInput(e.target.value); socket.emit('chat:typing', { roomId: 'class-8a', name: user.name }); }}
+                            <input
+                                type="text"
+                                value={chatInput}
+                                onChange={(e) => {
+                                    setChatInput(e.target.value);
+                                    // Use class-specific room
+                                    const standard = user?.standard || '8';
+                                    const section = user?.section || 'A';
+                                    const roomId = `class-${standard}${section.toLowerCase()}`;
+                                    socket.emit('chat:typing', { roomId, name: user.name });
+                                }}
                                 onKeyDown={(e) => e.key === 'Enter' && sendChat()}
-                                className="flex-1 px-4 py-3 bg-slate-800 border border-white/10 rounded-xl text-white placeholder-slate-500 text-sm font-semibold focus:border-indigo-500 outline-none" placeholder="Type a message..." />
-                            <button onClick={sendChat} className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center shrink-0 hover:bg-indigo-500 active:scale-95"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg></button>
+                                className="flex-1 px-4 py-3 bg-slate-800 border border-white/10 rounded-xl text-white placeholder-slate-500 text-sm font-semibold focus:border-indigo-500 outline-none"
+                                placeholder="Ask your doubts here..."
+                            />
+                            <button
+                                onClick={sendChat}
+                                className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center shrink-0 hover:bg-indigo-500 active:scale-95 transition-all"
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                                </svg>
+                            </button>
+                        </div>
+
+                        {/* Chat Info Footer */}
+                        <div className="mt-3 p-3 bg-slate-800/50 rounded-xl border border-white/5">
+                            <p className="text-[10px] text-slate-400 text-center">
+                                💡 This is a private group for <strong>Class {user?.standard || '8'}</strong> students and teachers.
+                                Ask doubts, share notes, and help each other!
+                            </p>
                         </div>
                     </div>
                 )}
@@ -875,48 +1114,94 @@ export default function StudentPortal({ user }) {
                         <div className="bg-slate-800 rounded-3xl p-6 border border-white/5 text-center">
                             <div className="w-20 h-20 mx-auto rounded-full bg-gradient-to-tr from-indigo-500 to-violet-500 flex items-center justify-center text-3xl font-extrabold mb-3">{user?.name?.split(' ').map(n => n[0]).join('') || 'U'}</div>
                             <h2 className="text-xl font-bold">{user?.name || 'Student'}</h2>
-                            <p className="text-sm text-slate-400 font-semibold mb-4">Standard 8 · {user?.language || 'English'}</p>
+                            <p className="text-sm text-slate-400 font-semibold mb-4">
+                                Class {user?.standard || '8'} · {user?.language || 'English'}
+                            </p>
                             <div className="flex gap-2">
-                                <span className="flex-1 bg-indigo-500/10 text-indigo-300 py-2 rounded-xl text-xs font-bold uppercase">🌟 1,240 Points</span>
-                                <span className="flex-1 bg-emerald-500/10 text-emerald-300 py-2 rounded-xl text-xs font-bold uppercase">🔥 5 Day Streak</span>
+                                <span className="flex-1 bg-indigo-500/10 text-indigo-300 py-2 rounded-xl text-xs font-bold uppercase">🌟 {user?.totalPoints || 0} Points</span>
+                                <span className="flex-1 bg-emerald-500/10 text-emerald-300 py-2 rounded-xl text-xs font-bold uppercase">🔥 {streak} Day{streak !== 1 ? 's' : ''} Streak</span>
                             </div>
                         </div>
+
+                        {/* Student Details */}
                         <div className="bg-slate-800 rounded-2xl border border-white/5 overflow-hidden divide-y divide-white/5">
-                            {[{
-                                icon: '🌐',
-                                label: 'Language',
-                                value: user?.language || 'English'
-                            }, {
-                                icon: '📥',
-                                label: 'Offline Downloads',
-                                value: formatBytes(offlineUsageBytes),
-                                description: 'Lessons, videos, notes & progress stored on this device'
-                            }, {
-                                icon: '🏫',
-                                label: 'School',
-                                value: user?.schoolId || 'nabha-01'
-                            }].map((item, i) => (
-                                <div key={i} className="p-4 flex items-center justify-between hover:bg-slate-700/50 cursor-pointer transition-colors">
-                                    <div className="flex items-center gap-3">
-                                        <span className="text-lg">{item.icon}</span>
-                                        <div className="flex flex-col items-start">
-                                            <span className="font-bold text-sm text-slate-300">{item.label}</span>
-                                            {item.description && (
-                                                <span className="text-[11px] text-slate-500 font-semibold">
-                                                    {item.description}
-                                                </span>
-                                            )}
-                                        </div>
+                            <div className="p-4">
+                                <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-3">Student Information</p>
+                                <div className="space-y-3">
+                                    <div className="flex justify-between">
+                                        <span className="text-sm text-slate-400">Class</span>
+                                        <span className="text-sm font-bold text-slate-200">
+                                            {user?.standard ? `Class ${user.standard}` : 'Class 8'}
+                                        </span>
                                     </div>
-                                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-500">
-                                        <span>{item.value}</span>
-                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
-                                        </svg>
+                                    <div className="flex justify-between">
+                                        <span className="text-sm text-slate-400">Age</span>
+                                        <span className="text-sm font-bold text-slate-200">{user?.age || 'N/A'}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-sm text-slate-400">Language</span>
+                                        <span className="text-sm font-bold text-slate-200">{user?.language || 'English'}</span>
                                     </div>
                                 </div>
-                            ))}
+                            </div>
+
+                            {/* Parent/Guardian Details */}
+                            <div className="p-4">
+                                <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-3">Parent/Guardian Information</p>
+                                <div className="space-y-3">
+                                    <div className="flex justify-between">
+                                        <span className="text-sm text-slate-400">Name</span>
+                                        <span className="text-sm font-bold text-slate-200">{user?.parentName || 'Not provided'}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-sm text-slate-400">Occupation</span>
+                                        <span className="text-sm font-bold text-slate-200">{user?.parentOccupation || 'Not provided'}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-sm text-slate-400">Mobile</span>
+                                        <span className="text-sm font-bold text-slate-200">{user?.parentMobile || 'Not provided'}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Account Details */}
+                            <div className="p-4">
+                                <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-3">Account Details</p>
+                                <div className="space-y-3">
+                                    <div className="flex justify-between">
+                                        <span className="text-sm text-slate-400">Email</span>
+                                        <span className="text-sm font-bold text-slate-200">{user?.email || 'N/A'}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-sm text-slate-400">School ID</span>
+                                        <span className="text-sm font-bold text-slate-200">{user?.schoolId || 'nabha-01'}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-sm text-slate-400">Offline Storage</span>
+                                        <span className="text-sm font-bold text-slate-200">{formatBytes(offlineUsageBytes)}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Address */}
+                            {user?.address && (
+                                <div className="p-4">
+                                    <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-2">Address</p>
+                                    <p className="text-sm text-slate-300">{user.address}</p>
+                                </div>
+                            )}
                         </div>
+
+                        {/* Logout Button */}
+                        <button
+                            onClick={() => {
+                                localStorage.removeItem('userInfo');
+                                window.location.reload();
+                            }}
+                            className="w-full py-4 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-2xl text-red-400 font-bold text-sm transition-all"
+                        >
+                            🚪 Logout
+                        </button>
                     </div>
                 )}
             </main>
