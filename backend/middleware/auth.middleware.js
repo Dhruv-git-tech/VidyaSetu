@@ -12,7 +12,7 @@ const protect = async (req, res, next) => {
 
             // Attach user to request (minus password)
             req.user = { userId: decoded.id, role: decoded.role, schoolId: decoded.schoolId };
-            next();
+            return next();
         } catch (error) {
             return res.status(401).json({ message: 'Not authorized, token failed' });
         }

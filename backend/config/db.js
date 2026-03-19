@@ -1,4 +1,8 @@
 const mongoose = require('mongoose');
+const dns = require('dns');
+
+// Force Google DNS for SRV resolution (fixes ISP DNS blocking MongoDB Atlas SRV records)
+dns.setServers(['8.8.8.8', '8.8.4.4']);
 
 let retryTimer = null;
 
